@@ -1,0 +1,22 @@
+data:
+  name: 'Elastic-Bar'
+  datapath: '/home/vdtrung/machine_learning/GItHub/data/physics_informed/elastic_bar_nonlinear.mat'
+  total_num: 2000
+  offset: 1000
+  n_sample: 200
+  nx: 1024
+  sub: 4
+  A0: 0.1
+  P0: 100.0
+  E: 100000.0
+  L: 1.0
+
+model:
+  layers: [64, 64, 64, 64, 64]
+  modes: [10, 10, 10, 10]
+  fc_dim: 128
+  act: gelu
+
+test:
+  batchsize: 1
+  ckpt: 'checkpoints/elastic-bar/elastic-bar-pretrain-eqn.pt'
