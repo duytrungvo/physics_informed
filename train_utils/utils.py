@@ -199,3 +199,10 @@ def dict2str(log_dict):
     for key, value in log_dict.items():
         res += f'{key}: {value}|'
     return res
+
+def save_loss(path, name, loss):
+    ckpt_dir = 'checkpoints/%s/' % path
+    if not os.path.exists(ckpt_dir):
+        os.makedirs(ckpt_dir)
+    np.savetxt(ckpt_dir + name, loss)
+    print('Training lost is saved at %s' % ckpt_dir + name)

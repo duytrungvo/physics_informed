@@ -7,6 +7,7 @@ from train_utils import Adam
 from train_utils.datasets import BurgersLoader
 from train_utils.train_2d import train_2d_burger
 from train_utils.eval_2d import eval_burgers
+from train_utils.plot_test import plot_solution
 
 
 def run(args, config):
@@ -85,3 +86,4 @@ if __name__ == '__main__':
         run(args, config)
     else:
         test(config)
+        plot_solution(config)

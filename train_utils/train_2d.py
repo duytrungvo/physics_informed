@@ -133,6 +133,7 @@ def train_2d_burger(model,
                          tags=tags, reinit=True,
                          settings=wandb.Settings(start_method="fork"))
 
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     data_weight = config['train']['xy_loss']
     f_weight = config['train']['f_loss']
     ic_weight = config['train']['ic_loss']
@@ -149,7 +150,8 @@ def train_2d_burger(model,
         train_loss = 0.0
 
         for x, y in train_loader:
-            x, y = x.to(rank), y.to(rank)
+            # x, y = x.to(rank), y.to(rank)
+            x, y = x.to(device), y.to(device)
             out = model(x).reshape(y.shape)
             data_loss = myloss(out, y)
 

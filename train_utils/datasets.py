@@ -76,6 +76,28 @@ class MatReader(object):
     def set_float(self, to_float):
         self.to_float = to_float
 
+class OneDLoader(object):
+    def __init__(self, datapath, nx=2**10, sub=8):
+        dataloader = MatReader(datapath)
+        self.sub = sub
+        self.s = nx // sub
+        self.x_data = dataloader.read_field('input')[:, ::sub]
+        self.y_data = dataloader.read_field('output')[:, ::sub]
+        self.gridx = dataloader.read_field('x')[:, ::sub]
+
+    def make_loader(self, n_sample, batch_size, start=0, train=True):
+        Xs = self.x_data[start:start + n_sample]
+        ys = self.y_data[start:start + n_sample]
+
+        Xs = Xs.reshape(n_sample, self.s)
+        Xs = torch.stack([Xs, self.gridx.repeat([n_sample, 1])], dim=2)
+        dataset = torch.utils.data.TensorDataset(Xs, ys)
+        if train:
+            loader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=True)
+        else:
+            loader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=False)
+        return loader
+
 
 class BurgersLoader(object):
     def __init__(self, datapath, nx=2 ** 10, nt=100, sub=8, sub_t=1, new=False):

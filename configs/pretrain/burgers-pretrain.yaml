@@ -1,6 +1,6 @@
 data:
-  name: Burgers
-  datapath: '../data/burgers.mat'
+  name: 'Burgers'
+  datapath: '/home/vdtrung/machine_learning/GItHub/data/physics_informed/burgers_pino.mat'
   total_num: 1000
   offset: 0
   n_sample: 800
@@ -19,13 +19,13 @@ model:
 
 train:
   batchsize: 20
-  epochs: 500
+  epochs: 5
   milestones: [150, 300, 450]
   base_lr: 0.001
   scheduler_gamma: 0.5
   ic_loss: 10.0
   f_loss: 1.0
-  xy_loss: 0.0
+  xy_loss: 1.0
   save_dir: 'burgers-FDM'
   save_name: 'burgers-pretrain-eqn.pt'
 
