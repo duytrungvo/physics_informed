@@ -48,9 +48,10 @@ def run(config):
     ckpt_dir = 'checkpoints/%s/' % path
     loss_history = np.loadtxt(ckpt_dir+'train_loss_history.txt')
     plt.semilogy(range(len(loss_history)), loss_history)
-    plt.xlabel('epochs')
-    plt.ylabel('$L2-error$')
+    plt.xlabel('Epochs')
+    plt.ylabel('$Loss$')
     plt.tight_layout()
+    plt.legend(['train_loss', 'pde_mse', 'bc_l_mse', 'bc_r_mse', 'data_l2'])
     plt.show()
 
 def test(config):

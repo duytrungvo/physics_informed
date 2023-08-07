@@ -1,7 +1,7 @@
 import numpy as np
 import torch
 import torch.nn.functional as F
-
+from torchmetrics.functional.regression import r2_score
 
 def FDM_Darcy(u, a, D=1):
     batchsize = u.size(0)
@@ -290,3 +290,28 @@ def get_forcing(S):
     x1 = torch.tensor(np.linspace(0, 2*np.pi, S, endpoint=False), dtype=torch.float).reshape(S, 1).repeat(1, S)
     x2 = torch.tensor(np.linspace(0, 2*np.pi, S, endpoint=False), dtype=torch.float).reshape(1, S).repeat(S, 1)
     return -4 * (torch.cos(4*(x2))).reshape(1,S,S,1)
+
+
+def elastic_bar_loss(u, a, E, P0):
+    batchsize = u.size(0)
+    nx = u.size(1)
+    dx = 1/1023
+    u = u.reshape(batchsize, nx)
+
+    ux = (u[:, 2:] - u[:, :-2])/(2*dx)
+    uxx = (u[:, 2:] - 2*u[:, 1:-1] + u[:, :-2])/(dx**2)
+    ax = (a[:, 2:] - a[:, :-2])/(2*dx)
+
+    boundary_l = u[:, 0]
+    # boundary_r = a[:, -1] * (u[:, -1] - u[:, -2]) / dx - P0/E
+    boundary_r = a[:, -1] * (3*u[:, -1] - 4*u[:, -2] + u[:, -3])/(2*dx) - P0/E
+    boundary_l = boundary_l.reshape(batchsize, 1)
+    boundary_r = boundary_r.reshape(batchsize, 1)
+    loss_boundary_l = F.mse_loss(boundary_l, torch.zeros(boundary_l.shape, device=u.device))
+    loss_boundary_r = F.mse_loss(boundary_r, torch.zeros(boundary_r.shape, device=u.device))
+
+    Du = (ax * ux + a[:, 1:-1] * uxx)
+    f = torch.zeros(Du.shape, device=u.device)
+    loss_f = F.mse_loss(Du, f)
+
+    return loss_boundary_l, loss_boundary_r, loss_f

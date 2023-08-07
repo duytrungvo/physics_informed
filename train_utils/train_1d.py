@@ -1,5 +1,5 @@
 import torch
-from .losses import LpLoss
+from .losses import LpLoss, elastic_bar_loss
 from tqdm import tqdm
 from .utils import save_checkpoint, save_loss
 
@@ -18,16 +18,22 @@ def train_1d(model,
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     data_weight = config['train']['xy_loss']
     f_weight = config['train']['f_loss']
+    bc_weight_l = config['train']['bc_loss_l']
+    bc_weight_r = config['train']['bc_loss_r']
+    E = config['data']['E']
+    P0 = config['data']['P0']
     model.train()
     myloss = LpLoss(size_average=True)
     pbar = range(config['train']['epochs'])
     if use_tqdm:
         pbar = tqdm(pbar, dynamic_ncols=True, smoothing=0.1)
-    train_loss_epoch = torch.zeros(config['train']['epochs'])
+    train_loss_epoch = torch.zeros(config['train']['epochs'], 5)
 
     for e in pbar:
         model.train()
-        # train_pino = 0.0
+        physic_mse = 0.0
+        bc_l_mse = 0.0
+        bc_r_mse = 0.0
         data_l2 = 0.0
         train_loss = 0.0
         for x, y in train_loader:
@@ -35,31 +41,42 @@ def train_1d(model,
             out = model(x)
 
             data_loss = myloss(out, y)
-            total_loss = data_loss * data_weight
+            bc_loss_l, bc_loss_r, f_loss = elastic_bar_loss(out, x[:, :, 0], E, P0)
+            total_loss = f_loss * f_weight + bc_loss_l * bc_weight_l + bc_loss_r * bc_weight_r + data_loss * data_weight
 
             optimizer.zero_grad()
             total_loss.backward()
             optimizer.step()
 
+            physic_mse += f_loss.item()
+            bc_l_mse += bc_loss_l.item()
+            bc_r_mse += bc_loss_r.item()
             data_l2 += data_loss.item()
             train_loss += total_loss.item()
 
         scheduler.step()
+        physic_mse /= len(train_loader)
+        bc_l_mse /= len(train_loader)
+        bc_r_mse /= len(train_loader)
         data_l2 /= len(train_loader)
         train_loss /= len(train_loader)
 
         if use_tqdm:
             pbar.set_description(
                 (
-                    f'Epoch {e}, train loss: {train_loss:.5f} '
-                    # f'train f error: {train_pino:.5f}; '
-                    f'data l2 error: {data_l2:.5f}'
+                    f'Epoch {e}, train loss: {train_loss:.5E} '
+                    f'train f error: {physic_mse:.5E}; '
+                    f'train bc left error: {bc_l_mse:.5E}; '
+                    f'train bc right error: {bc_r_mse:.5E}; '
+                    f'data l2 error: {data_l2:.5E}'
                 )
             )
         if wandb and log:
             wandb.log(
                 {
-                    # 'Train f error': train_pino,
+                    'Train f error': physic_mse,
+                    'Train bc left error': bc_l_mse,
+                    'Train bc right error': bc_r_mse,
                     'Train L2 error': data_l2,
                     'Train loss': train_loss,
                 }
@@ -70,7 +87,7 @@ def train_1d(model,
                             config['train']['save_name'].replace('.pt', f'_{e}.pt'),
                             model, optimizer)
 
-        train_loss_epoch[e] = train_loss
+        train_loss_epoch[e, :] = torch.tensor([train_loss, physic_mse, bc_l_mse, bc_r_mse, data_l2])
 
     save_loss(config['train']['save_dir'],
               config['train']['loss_save_name'],
