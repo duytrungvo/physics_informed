@@ -10,7 +10,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 torch.manual_seed(0)
-# np.random.seed(0)
+np.random.seed(0)
 
 def run(config):
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
@@ -79,9 +79,10 @@ def test(config):
 
     myloss = LpLoss(size_average=True)
     model.eval()
-    test_x = np.zeros((data_config['n_sample'], data_config['nx']//data_config['sub'], 2))
-    preds_y = np.zeros((data_config['n_sample'], data_config['nx']//data_config['sub']))
-    test_y = np.zeros((data_config['n_sample'], data_config['nx']//data_config['sub']))
+    s = int(np.ceil(data_config['nx']/data_config['sub']))
+    test_x = np.zeros((data_config['n_sample'], s, 2))
+    preds_y = np.zeros((data_config['n_sample'], s))
+    test_y = np.zeros((data_config['n_sample'], s))
     with torch.no_grad():
         for i, data in enumerate(data_loader):
             test_l2 = 0
@@ -108,7 +109,7 @@ def test(config):
         plt.ylabel('$A/A_0$')
         plt.title(f'Input $A(x)$')
         plt.xlim([0, 1])
-        plt.ylim([0, 1])
+        plt.ylim([0, 2])
 
         plt.subplot(1, 2, 2)
         plt.plot(x_plot[:, 1], y_pred_plot*non_dim, 'r', label='predict sol')

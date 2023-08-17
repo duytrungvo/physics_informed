@@ -292,26 +292,83 @@ def get_forcing(S):
     return -4 * (torch.cos(4*(x2))).reshape(1,S,S,1)
 
 
-def elastic_bar_loss(u, a, E, P0):
+def FDM_ElasticBar_Order2(u, a, E, P0):
     batchsize = u.size(0)
     nx = u.size(1)
-    dx = 1/1023
+    dx = 1 / (nx - 1)
     u = u.reshape(batchsize, nx)
 
-    ux = (u[:, 2:] - u[:, :-2])/(2*dx)
-    uxx = (u[:, 2:] - 2*u[:, 1:-1] + u[:, :-2])/(dx**2)
-    ax = (a[:, 2:] - a[:, :-2])/(2*dx)
+    ux = (-1/2 * u[:, :-2] + 1/2 * u[:, 2:]) / dx
+    uxx = (u[:, :-2] - 2 * u[:, 1:-1] + u[:, 2:]) / dx ** 2
+    ax = (-1/2 * a[:, :-2] + 1/2 * a[:, 2:]) / dx
+
+    Du = ax * ux + a[:, 1:-1] * uxx
 
     boundary_l = u[:, 0]
-    # boundary_r = a[:, -1] * (u[:, -1] - u[:, -2]) / dx - P0/E
-    boundary_r = a[:, -1] * (3*u[:, -1] - 4*u[:, -2] + u[:, -3])/(2*dx) - P0/E
+    boundary_r = a[:, -1] * (3 / 2 * u[:, -1] - 2 * u[:, -2] + 1 / 2 * u[:, -3]) / dx - P0 / E
     boundary_l = boundary_l.reshape(batchsize, 1)
     boundary_r = boundary_r.reshape(batchsize, 1)
-    loss_boundary_l = F.mse_loss(boundary_l, torch.zeros(boundary_l.shape, device=u.device))
-    loss_boundary_r = F.mse_loss(boundary_r, torch.zeros(boundary_r.shape, device=u.device))
 
-    Du = (ax * ux + a[:, 1:-1] * uxx)
+    return Du, boundary_l, boundary_r
+
+
+def FDM_ElasticBar_Order4(u, a, E, P0):
+    batchsize = u.size(0)
+    nx = u.size(1)
+    dx = 1 / (nx - 1)
+    u = u.reshape(batchsize, nx)
+
+    ux = torch.zeros(batchsize, nx - 2)
+    uxx = torch.zeros(batchsize, nx - 2)
+    ax = torch.zeros(batchsize, nx - 2)
+
+    ux[:, 1:-1] = (1 / 12 * u[:, :-4] - 2 / 3 * u[:, 1:-3] + 2 / 3 * u[:, 3:-1] - 1 / 12 * u[:, 4:]) / dx
+    ux[:, 0] = (-25 / 12 * u[:, 1] + 4 * u[:, 2] - 3 * u[:, 3] + 4 / 3 * u[:, 4] - 1 / 4 * u[:, 5]) / dx
+    ux[:, -1] = (25 / 12 * u[:, -2] - 4 * u[:, -3] + 3 * u[:, -4] - 4 / 3 * u[:, -5] + 1 / 4 * u[:, -6]) / dx
+
+    uxx[:, 1:-1] = (-1 / 12 * u[:, :-4]
+                    + 4 / 3 * u[:, 1:-3]
+                    - 5 / 2 * u[:, 2:-2]
+                    + 4 / 3 * u[:, 3:-1]
+                    - 1 / 12 * u[:, 4:]) / dx ** 2
+    uxx[:, 0] = (15 / 4 * u[:, 1]
+                 - 77 / 6 * u[:, 2]
+                 + 107 / 6 * u[:, 3]
+                 - 13 * u[:, 4]
+                 + 61 / 12 * u[:, 5]
+                 - 5 / 6 * u[:, 6]) / dx ** 2
+    uxx[:, -1] = (15 / 4 * u[:, -2]
+                  - 77 / 6 * u[:, -3]
+                  + 107 / 6 * u[:, -4]
+                  - 13 * u[:, -5]
+                  + 61 / 12 * u[:, -6]
+                  - 5 / 6 * u[:, -7]) / dx ** 2
+
+    ax[:, 1:-1] = (1 / 12 * a[:, :-4] - 2 / 3 * a[:, 1:-3] + 2 / 3 * a[:, 3:-1] - 1 / 12 * a[:, 4:]) / dx
+    ax[:, 0] = (-25 / 12 * a[:, 1] + 4 * a[:, 2] - 3 * a[:, 3] + 4 / 3 * a[:, 4] - 1 / 4 * a[:, 5]) / dx
+    ax[:, -1] = (25 / 12 * a[:, -2] - 4 * a[:, -3] + 3 * a[:, -4] - 4 / 3 * a[:, -5] + 1 / 4 * a[:, -6]) / dx
+
+    Du = ax * ux + a[:, 1:-1] * uxx
+
+    boundary_l = u[:, 0]
+    boundary_r = a[:, -1] * (25 / 12 * u[:, -1]
+                              - 4 * u[:, -2]
+                              + 3 * u[:, -3]
+                              - 4 / 3 * u[:, -4]
+                              + 1 / 4 * u[:, -5]) / dx - P0 / E
+    boundary_l = boundary_l.reshape(batchsize, 1)
+    boundary_r = boundary_r.reshape(batchsize, 1)
+
+    return Du, boundary_l, boundary_r
+
+def elastic_bar_loss(u, a, E, P0):
+
+    Du, boundary_l, boundary_r = FDM_ElasticBar_Order2(u, a, E, P0)
+
     f = torch.zeros(Du.shape, device=u.device)
     loss_f = F.mse_loss(Du, f)
 
-    return loss_boundary_l, loss_boundary_r, loss_f
+    loss_boundary_l = F.mse_loss(boundary_l, torch.zeros(boundary_l.shape, device=u.device))
+    loss_boundary_r = F.mse_loss(boundary_r, torch.zeros(boundary_r.shape, device=u.device))
+
+    return loss_f, loss_boundary_l, loss_boundary_r

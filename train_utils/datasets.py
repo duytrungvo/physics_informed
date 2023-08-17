@@ -77,10 +77,10 @@ class MatReader(object):
         self.to_float = to_float
 
 class OneDLoader(object):
-    def __init__(self, datapath, nx=2**10, sub=8):
+    def __init__(self, datapath, nx=2**10+1, sub=8):
         dataloader = MatReader(datapath)
         self.sub = sub
-        self.s = nx // sub
+        self.s = int(np.ceil(nx / sub))
         self.x_data = dataloader.read_field('input')[:, ::sub]
         self.y_data = dataloader.read_field('output')[:, ::sub]
         self.gridx = dataloader.read_field('x')[:, ::sub]

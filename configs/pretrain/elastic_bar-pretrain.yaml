@@ -1,11 +1,11 @@
 data:
   name: 'Elastic-Bar'
-  datapath: '/home/vdtrung/machine_learning/GItHub/data/physics_informed/elastic_bar_nonlinear.mat'
-  total_num: 2000
+  datapath: '/home/vdtrung/machine_learning/GItHub/data/physics_informed/elastic_bar_linear_shorter_range_1025.mat'
+  total_num: 5000
   offset: 0
   n_sample: 1000
-  nx: 1024
-  sub: 1
+  nx: 1025
+  sub: 8
   A0: 0.1
   P0: 100.0
   E: 100000.0

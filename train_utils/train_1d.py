@@ -40,8 +40,8 @@ def train_1d(model,
             x, y = x.to(device), y.to(device)
             out = model(x)
 
-            data_loss = myloss(out, y)
-            bc_loss_l, bc_loss_r, f_loss = elastic_bar_loss(out, x[:, :, 0], E, P0)
+            data_loss = myloss(out, y) #torch.tensor([0.0])
+            f_loss, bc_loss_l, bc_loss_r = elastic_bar_loss(out, x[:, :, 0], E, P0)
             total_loss = f_loss * f_weight + bc_loss_l * bc_weight_l + bc_loss_r * bc_weight_r + data_loss * data_weight
 
             optimizer.zero_grad()
