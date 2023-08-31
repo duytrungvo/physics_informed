@@ -1,0 +1,21 @@
+data:
+  name: 'Euler-Bernoulli Beam'
+  datapath: '/home/vdtrung/machine_learning/GItHub/data/physics_informed/eb_beam_linear_1025.mat'
+  total_num: 5000
+  offset: 1000
+  n_sample: 240
+  nx: 1025
+  sub: 8
+  q0: -1.0
+  EI: 1.0
+  L: 1.0
+
+model:
+  layers: [64, 64, 64, 64, 64]
+  modes: [10, 10, 10, 10]
+  fc_dim: 128
+  act: gelu
+
+test:
+  batchsize: 1
+  ckpt: 'checkpoints/eb-beam/eb-beam-pretrain-eqn.pt'
