@@ -42,7 +42,12 @@ class FNO1d(nn.Module):
         self.fc2 = nn.Linear(fc_dim, out_dim)
         self.act = _get_act(act)
 
-    def forward(self, x):
+        self._output_transform = None
+
+    def apply_output_transform(self, transform):
+        self._output_transform = transform
+    def forward(self, inputs):
+        x = inputs
         length = len(self.ws)
 
         x = self.fc0(x)
@@ -59,5 +64,12 @@ class FNO1d(nn.Module):
         x = self.fc1(x)
         x = self.act(x)
         x = self.fc2(x)
+
+        if self._output_transform is not None:
+            aa = inputs[:, :, 0][:, -1].repeat(x.size(1), 1)
+            aa = aa.permute(1, 0)
+            aa = aa.reshape(x.shape)
+            du1 = 100.0/(100000.0*aa)
+            x = self._output_transform(inputs[:, :, 1].reshape(x.shape), du1, x)
         return x
 

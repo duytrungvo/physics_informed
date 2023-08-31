@@ -24,9 +24,10 @@ train:
   base_lr: 0.001
   scheduler_gamma: 0.5
   bc_loss_l: 1.0
-  bc_loss_r: 10.0
+  bc_loss_r: 1.0
   f_loss: 1.0
-  xy_loss: 0.0
+  xy_loss: 1.0
+  balance_scheme: 'sum'
   save_dir: 'elastic-bar'
   save_name: 'elastic-bar-pretrain-eqn.pt'
   loss_save_name: 'train_loss_history.txt'

@@ -29,6 +29,10 @@ def run(config):
                   layers=model_config['layers'],
                   act=model_config['act']).to(device)
 
+    # model.apply_output_transform(
+    #     lambda t, du1, y: t * du1 + (t * (t-1)**2) * y
+    # )
+
     # train
     train_config = config['train']
     optimizer = Adam(model.parameters(), betas=(0.9, 0.999),
@@ -69,6 +73,11 @@ def test(config):
                   fc_dim=model_config['fc_dim'],
                   layers=model_config['layers'],
                   act=model_config['act']).to(device)
+
+    # model.apply_output_transform(
+    #     lambda t, du1, y: t * du1 + (t * (t - 1) ** 2) * y
+    # )
+
     # Load from checkpoint
     if 'ckpt' in config['test']:
         ckpt_path = config['test']['ckpt']

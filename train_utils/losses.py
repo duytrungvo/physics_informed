@@ -361,6 +361,53 @@ def FDM_ElasticBar_Order4(u, a, E, P0):
 
     return Du, boundary_l, boundary_r
 
+def FDM_ElasticBar(u, a, E, P0):
+    batchsize = u.size(0)
+    nx = u.size(1)
+    dx = 1 / (nx - 1)
+    u = u.reshape(batchsize, nx)
+
+    ux = (-1 / 2 * u[:, :-2] + 1 / 2 * u[:, 2:]) / dx
+
+    Du = a[:, 1:-1] * ux - P0/E
+
+    boundary_l = u[:, 0]
+    boundary_r = a[:, -1] * (3 / 2 * u[:, -1] - 2 * u[:, -2] + 1 / 2 * u[:, -3]) / dx - P0 / E
+    boundary_l = boundary_l.reshape(batchsize, 1)
+    boundary_r = boundary_r.reshape(batchsize, 1)
+
+    return Du, boundary_l, boundary_r
+
+def FEM_ElasticBar(u, a, E, P0):
+    batchsize = u.size(0)
+    nx = u.size(1)
+    dx = 1 / (nx - 1)
+    u = u.reshape(batchsize, nx)
+    kuf = torch.zeros(u.shape, device=u.device)
+    for ele in range(nx-1):
+        ae = (a[:, ele] + a[:, ele+1])/2
+        k11 = 1 * ae/dx
+        k12 = -1 * ae/dx
+        k21 = -1 * ae/dx
+        k22 = 1 * ae/dx
+        kuf[:, ele] = kuf[:, ele] + u[:, ele] * k11 + u[:, ele+1] * k12
+        kuf[:, ele+1] = kuf[:, ele+1] + u[:, ele] * k21 + u[:, ele+1] * k22
+        # if ele == nx-2:
+        #     kuf[:, ele+1] = kuf[:, ele+1] - P0/E
+    # boundary condition
+    kuf[:, 0] = u[:, 0]
+    kuf[:, -1] = kuf[:, -1] - P0/E
+    # kuf[:, -1] = a[:, -1] * (3 / 2 * u[:, -1] - 2 * u[:, -2] + 1 / 2 * u[:, -3]) / dx - P0 / E
+
+    boundary_l = kuf[:, 0]
+    boundary_r = kuf[:, -1]
+    # boundary_l = u[:, 0]
+    # boundary_r = a[:, -1] * (3 / 2 * u[:, -1] - 2 * u[:, -2] + 1 / 2 * u[:, -3]) / dx - P0 / E
+    boundary_l = boundary_l.reshape(batchsize, 1)
+    boundary_r = boundary_r.reshape(batchsize, 1)
+
+    return kuf[:, 1:], boundary_l, boundary_r
+
 def elastic_bar_loss(u, a, E, P0):
 
     Du, boundary_l, boundary_r = FDM_ElasticBar_Order2(u, a, E, P0)

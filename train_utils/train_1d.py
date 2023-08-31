@@ -2,6 +2,8 @@ import torch
 from .losses import LpLoss, elastic_bar_loss
 from tqdm import tqdm
 from .utils import save_checkpoint, save_loss
+from softadapt import SoftAdapt, LossWeightedSoftAdapt
+from train_utils.aggregator import Relobralo, SoftAdapt, Sum
 
 try:
     import wandb
@@ -16,10 +18,13 @@ def train_1d(model,
              log=False,
              use_tqdm=True):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
     data_weight = config['train']['xy_loss']
     f_weight = config['train']['f_loss']
     bc_weight_l = config['train']['bc_loss_l']
     bc_weight_r = config['train']['bc_loss_r']
+    params_loss = {'f_loss', 'bc_loss_l', 'bc_loss_r', 'data_loss'}
+    weight_loss = {'f_loss': f_weight, 'bc_loss_l': bc_weight_l, 'bc_loss_r': bc_weight_r, 'data_loss': data_weight}
     E = config['data']['E']
     P0 = config['data']['P0']
     model.train()
@@ -28,6 +33,20 @@ def train_1d(model,
     if use_tqdm:
         pbar = tqdm(pbar, dynamic_ncols=True, smoothing=0.1)
     train_loss_epoch = torch.zeros(config['train']['epochs'], 5)
+
+    if config['train']['balance_scheme'] == 'sum':
+        aggregator = Sum(params=params_loss, num_losses=len(params_loss),
+                           weights=weight_loss)
+
+    if config['train']['balance_scheme'] == 'softadapt':
+        aggregator = SoftAdapt(params=params_loss, num_losses=len(params_loss),
+                               weights=weight_loss)
+
+    if config['train']['balance_scheme'] == 'relobralo':
+       aggregator = Relobralo(params=params_loss, num_losses=len(params_loss),
+                              weights=weight_loss)
+
+    count_update_weight = 0
 
     for e in pbar:
         model.train()
@@ -38,11 +57,15 @@ def train_1d(model,
         train_loss = 0.0
         for x, y in train_loader:
             x, y = x.to(device), y.to(device)
-            out = model(x)
+            out = model(x).reshape(y.shape)
 
             data_loss = myloss(out, y) #torch.tensor([0.0])
             f_loss, bc_loss_l, bc_loss_r = elastic_bar_loss(out, x[:, :, 0], E, P0)
-            total_loss = f_loss * f_weight + bc_loss_l * bc_weight_l + bc_loss_r * bc_weight_r + data_loss * data_weight
+
+            # balance scheme
+            losses = {'f_loss': f_loss, 'bc_loss_l': bc_loss_l, 'bc_loss_r': bc_loss_r, 'data_loss': data_loss}
+            total_loss = aggregator(losses, count_update_weight)
+            count_update_weight += 1
 
             optimizer.zero_grad()
             total_loss.backward()
