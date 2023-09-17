@@ -1,7 +1,34 @@
 import numpy as np
 import torch
 import torch.nn.functional as F
-from torchmetrics.functional.regression import r2_score
+# from torchmetrics.functional.regression import r2_score
+
+def pino_loss_1d(func):
+    def inner(*args, **kwargs):
+        Du, boundary_l, boundary_r = func(*args, **kwargs)
+        f = torch.zeros(Du.shape, device=args[2].device)
+        loss_f = F.mse_loss(Du, f)
+
+        loss_boundary_l = F.mse_loss(boundary_l, torch.zeros(boundary_l.shape, device=args[2].device))
+        loss_boundary_r = F.mse_loss(boundary_r, torch.zeros(boundary_r.shape, device=args[2].device))
+
+        return loss_f, loss_boundary_l, loss_boundary_r
+    return inner
+
+def pino_loss_reduced_order_1d(func):
+    def inner(*args, **kwargs):
+        Du1, Du2, boundary_l, boundary_r = func(*args, **kwargs)
+        f1 = torch.zeros(Du1.shape, device=args[2].device)
+        loss_f1 = F.mse_loss(Du1, f1)
+        f2 = torch.zeros(Du2.shape, device=args[2].device)
+        loss_f2 = F.mse_loss(Du2, f2)
+        loss_f = loss_f1 + loss_f2
+
+        loss_boundary_l = F.mse_loss(boundary_l, torch.zeros(boundary_l.shape, device=args[2].device))
+        loss_boundary_r = F.mse_loss(boundary_r, torch.zeros(boundary_r.shape, device=args[2].device))
+
+        return loss_f, loss_boundary_l, loss_boundary_r
+    return inner
 
 def FDM_Darcy(u, a, D=1):
     batchsize = u.size(0)
@@ -291,11 +318,13 @@ def get_forcing(S):
     x2 = torch.tensor(np.linspace(0, 2*np.pi, S, endpoint=False), dtype=torch.float).reshape(1, S).repeat(S, 1)
     return -4 * (torch.cos(4*(x2))).reshape(1,S,S,1)
 
-
-def FDM_ElasticBar_Order2(u, a, E, P0):
+@pino_loss_1d
+def FDM_ElasticBar_Order2(config_data, a, u):
     batchsize = u.size(0)
     nx = u.size(1)
     dx = 1 / (nx - 1)
+    P0 = config_data['P0']
+    E = config_data['E']
     u = u.reshape(batchsize, nx)
 
     ux = (-1/2 * u[:, :-2] + 1/2 * u[:, 2:]) / dx
@@ -311,11 +340,13 @@ def FDM_ElasticBar_Order2(u, a, E, P0):
 
     return Du, boundary_l, boundary_r
 
-
-def FDM_ElasticBar_Order4(u, a, E, P0):
+@pino_loss_1d
+def FDM_ElasticBar_Order4(config_data, a, u):
     batchsize = u.size(0)
     nx = u.size(1)
     dx = 1 / (nx - 1)
+    P0 = config_data['P0']
+    E = config_data['E']
     u = u.reshape(batchsize, nx)
 
     ux = torch.zeros(batchsize, nx - 2)
@@ -361,10 +392,13 @@ def FDM_ElasticBar_Order4(u, a, E, P0):
 
     return Du, boundary_l, boundary_r
 
-def FDM_ElasticBar(u, a, E, P0):
+@pino_loss_1d
+def FDM_ElasticBar(config_data, a, u):
     batchsize = u.size(0)
     nx = u.size(1)
     dx = 1 / (nx - 1)
+    P0 = config_data['P0']
+    E = config_data['E']
     u = u.reshape(batchsize, nx)
 
     ux = (-1 / 2 * u[:, :-2] + 1 / 2 * u[:, 2:]) / dx
@@ -378,10 +412,30 @@ def FDM_ElasticBar(u, a, E, P0):
 
     return Du, boundary_l, boundary_r
 
-def FEM_ElasticBar(u, a, E, P0):
+@pino_loss_reduced_order_1d
+def FDM_ReducedOrder_ElasticBar(config_data, a, u):
     batchsize = u.size(0)
     nx = u.size(1)
     dx = 1 / (nx - 1)
+    P0 = config_data['P0']
+    E = config_data['E']
+    out_dim = config_data['out_dim']
+    u = u.reshape(batchsize, nx, out_dim)
+    ux = (-1 / 2 * u[:, :-2, 0] + 1 / 2 * u[:, 2:, 0]) / dx
+    Du1 = E * a[:, 1:-1] * ux - u[:, 1:-1, 1]
+    Du2 = (-1 / 2 * u[:, :-2, 1] + 1 / 2 * u[:, 2:, 1]) / dx
+
+    boundary_l = u[:, 0, 0]
+    boundary_r = u[:, -1, 1] - P0
+    return Du1, Du2, boundary_l, boundary_r
+
+@pino_loss_1d
+def FEM_ElasticBar(config_data, a, u):
+    batchsize = u.size(0)
+    nx = u.size(1)
+    dx = 1 / (nx - 1)
+    P0 = config_data['P0']
+    E = config_data['E']
     u = u.reshape(batchsize, nx)
     kuf = torch.zeros(u.shape, device=u.device)
     for ele in range(nx-1):
@@ -408,14 +462,9 @@ def FEM_ElasticBar(u, a, E, P0):
 
     return kuf[:, 1:], boundary_l, boundary_r
 
-def elastic_bar_loss(u, a, E, P0):
-
-    Du, boundary_l, boundary_r = FDM_ElasticBar_Order2(u, a, E, P0)
-
-    f = torch.zeros(Du.shape, device=u.device)
-    loss_f = F.mse_loss(Du, f)
-
-    loss_boundary_l = F.mse_loss(boundary_l, torch.zeros(boundary_l.shape, device=u.device))
-    loss_boundary_r = F.mse_loss(boundary_r, torch.zeros(boundary_r.shape, device=u.device))
-
-    return loss_f, loss_boundary_l, loss_boundary_r
+@pino_loss_1d
+def Euler_Bernoulli_Beam_FDM(config_data, a, u, data_loss):
+    pass
+@pino_loss_1d
+def zeros_loss(*args, **kwargs):
+    return torch.zeros(1), torch.zeros(1), torch.zeros(1)

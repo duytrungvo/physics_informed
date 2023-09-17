@@ -27,6 +27,30 @@ class FCNet(nn.Module):
         return self.fc(x)
 
 
+class NNet(nn.Module):
+    '''
+    Fully connected layers with Tanh as nonlinearity
+    Reproduced from PINNs Burger equation
+    '''
+
+    def __init__(self, layers=[2, 10, 1]):
+        super(NNet, self).__init__()
+
+        fc_list = [linear_block(in_size, out_size)
+                   for in_size, out_size in zip(layers, layers[1:-1])]
+        fc_list.append(nn.Linear(layers[-2], layers[-1]))
+        self.fc = nn.Sequential(*fc_list)
+        self._output_transform = None
+
+    def apply_output_transform(self, transform):
+        self._output_transform = transform
+    def forward(self, inputs):
+        x = self.fc(inputs[:, :, 0])
+        if self._output_transform is not None:
+            x = self._output_transform(inputs[:, :, 1].reshape(x.shape), x)
+        return x
+
+
 class DenseNet(nn.Module):
     def __init__(self, layers, nonlinearity, out_nonlinearity=None, normalize=False):
         super(DenseNet, self).__init__()

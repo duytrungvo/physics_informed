@@ -1,3 +1,4 @@
+import torch
 import torch.nn as nn
 from .basics import SpectralConv1d
 from .utils import _get_act
@@ -66,10 +67,7 @@ class FNO1d(nn.Module):
         x = self.fc2(x)
 
         if self._output_transform is not None:
-            aa = inputs[:, :, 0][:, -1].repeat(x.size(1), 1)
-            aa = aa.permute(1, 0)
-            aa = aa.reshape(x.shape)
-            du1 = 100.0/(100000.0*aa)
-            x = self._output_transform(inputs[:, :, 1].reshape(x.shape), du1, x)
+            x = [f(inputs[:, :, 1], x[:, :, i]) for i, f in enumerate(self._output_transform)]
+            x = torch.stack(x, dim=2)
         return x
 

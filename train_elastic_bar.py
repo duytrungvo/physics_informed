@@ -1,11 +1,11 @@
 from argparse import ArgumentParser
 import yaml
 import torch
-from models import FNO1d
+from models import FNO1d, FCNet, NNet
 from train_utils import Adam
-from train_utils.datasets import OneDLoader
+from train_utils.datasets import Loader_1D
 from train_utils.train_1d import train_1d
-from train_utils.losses import LpLoss
+from train_utils.losses import LpLoss, FDM_ElasticBar, FDM_ElasticBar_Order2, zeros_loss, FDM_ReducedOrder_ElasticBar
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -15,23 +15,45 @@ np.random.seed(0)
 def run(config):
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
     data_config = config['data']
-    dataset = OneDLoader(data_config['datapath'],
-                            nx=data_config['nx'],
-                            sub=data_config['sub'])
+
+    dataset = Loader_1D(data_config['datapath'],
+                           nx=data_config['nx'],
+                           sub=data_config['sub'],
+                           in_dim=data_config['in_dim'],
+                           out_dim=data_config['out_dim'])
+
     train_loader = dataset.make_loader(n_sample=data_config['n_sample'],
                                        batch_size=config['train']['batchsize'],
                                        start=data_config['offset'])
 
     # define model
     model_config = config['model']
-    model = FNO1d(modes=model_config['modes'],
-                  fc_dim=model_config['fc_dim'],
-                  layers=model_config['layers'],
-                  act=model_config['act']).to(device)
+    if model_config['name'] == 'fno':
+        model = FNO1d(modes=model_config['modes'],
+                      fc_dim=model_config['fc_dim'],
+                      layers=model_config['layers'],
+                      out_dim=data_config['out_dim'],
+                      act=model_config['act']).to(device)
+        if model_config['apply_output_transform'] == 'yes' and data_config['out_dim'] == 1:
+            model.apply_output_transform(
+                [lambda x, y: x * y + 0.0]
+            )
+        if model_config['apply_output_transform'] == 'yes' and data_config['out_dim'] == 2:
+            model.apply_output_transform(
+                [lambda x, y: x * y + 0.0,
+                 lambda x, y: (data_config['L'] - x) * y + data_config['P0']]
+            )
+    if model_config['name'] == 'fcn':
+        model = FCNet(
+            layers=np.concatenate(([data_config['in_dim']], model_config['layers'][1:], [data_config['out_dim']]))).to(
+            device)
+    if model_config['name'] == 'nn':
+        model = NNet(layers=np.concatenate(([dataset.s], model_config['layers'][1:], [dataset.s]))).to(device)
+        if model_config['apply_output_transform'] == 'yes':
+            model.apply_output_transform(
+                lambda x, y: x * y + 0.0
+            )
 
-    # model.apply_output_transform(
-    #     lambda t, du1, y: t * du1 + (t * (t-1)**2) * y
-    # )
 
     # train
     train_config = config['train']
@@ -40,11 +62,20 @@ def run(config):
     scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer,
                                                      milestones=train_config['milestones'],
                                                      gamma=train_config['scheduler_gamma'])
+    if train_config['pino_loss'] == 'zero':
+        pino_loss = zeros_loss
+    if train_config['pino_loss'] == '1st_order':
+        pino_loss = FDM_ElasticBar
+    if train_config['pino_loss'] == '2nd_order':
+        pino_loss = FDM_ElasticBar_Order2
+    if train_config['pino_loss'] == 'reduced_order':
+        pino_loss = FDM_ReducedOrder_ElasticBar
     train_1d(model,
              train_loader,
              optimizer,
              scheduler,
              config,
+             pino_loss=pino_loss,
              log=False,
              use_tqdm=True)
 
@@ -61,22 +92,44 @@ def run(config):
 def test(config):
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
     data_config = config['data']
-    dataset = OneDLoader(data_config['datapath'],
-                         nx=data_config['nx'],
-                         sub=data_config['sub'])
+
+    dataset = Loader_1D(data_config['datapath'],
+                        nx=data_config['nx'],
+                        sub=data_config['sub'],
+                        in_dim=data_config['in_dim'],
+                        out_dim=data_config['out_dim'])
+
     data_loader = dataset.make_loader(n_sample=data_config['n_sample'],
-                                       batch_size=config['test']['batchsize'],
-                                       start=data_config['offset'])
+                                      batch_size=config['test']['batchsize'],
+                                      start=data_config['offset'])
 
     model_config = config['model']
-    model = FNO1d(modes=model_config['modes'],
-                  fc_dim=model_config['fc_dim'],
-                  layers=model_config['layers'],
-                  act=model_config['act']).to(device)
+    if model_config['name'] == 'fno':
+        model = FNO1d(modes=model_config['modes'],
+                      fc_dim=model_config['fc_dim'],
+                      layers=model_config['layers'],
+                      out_dim=data_config['out_dim'],
+                      act=model_config['act']).to(device)
+        if model_config['apply_output_transform'] == 'yes' and data_config['out_dim'] == 1:
+            model.apply_output_transform(
+                [lambda x, y: x * y + 0.0]
+            )
+        if model_config['apply_output_transform'] == 'yes' and data_config['out_dim'] == 2:
+            model.apply_output_transform(
+                [lambda x, y: x * y + 0.0,
+                 lambda x, y: (data_config['L'] - x) * y + data_config['P0']]
+            )
+    if model_config['name'] == 'fcn':
+        model = FCNet(
+            layers=np.concatenate(([data_config['in_dim']], model_config['layers'][1:], [data_config['out_dim']]))).to(
+            device)
+    if model_config['name'] == 'nn':
+        model = NNet(layers=np.concatenate(([dataset.s], model_config['layers'][1:], [dataset.s]))).to(device)
+        if model_config['apply_output_transform'] == 'yes':
+            model.apply_output_transform(
+                lambda x, y: x * y + 0.0
+            )
 
-    # model.apply_output_transform(
-    #     lambda t, du1, y: t * du1 + (t * (t - 1) ** 2) * y
-    # )
 
     # Load from checkpoint
     if 'ckpt' in config['test']:
@@ -88,21 +141,25 @@ def test(config):
 
     myloss = LpLoss(size_average=True)
     model.eval()
-    s = int(np.ceil(data_config['nx']/data_config['sub']))
-    test_x = np.zeros((data_config['n_sample'], s, 2))
-    preds_y = np.zeros((data_config['n_sample'], s))
-    test_y = np.zeros((data_config['n_sample'], s))
+    s = int(np.ceil(data_config['nx'] / data_config['sub']))
+    test_x = np.zeros((data_config['n_sample'], s, data_config['in_dim']))
+    preds_y = np.zeros((data_config['n_sample'], s, data_config['out_dim']))
+    test_y = np.zeros((data_config['n_sample'], s, data_config['out_dim']))
+    test_err = []
     with torch.no_grad():
         for i, data in enumerate(data_loader):
-            test_l2 = 0
             data_x, data_y = data
             data_x, data_y = data_x.to(device), data_y.to(device)
             pred_y = model(data_x).reshape(data_y.shape)
-            test_l2 += myloss(pred_y, data_y).item()
+            data_loss = myloss(pred_y, data_y)
+            test_err.append(data_loss.item())
             test_x[i] = data_x.cpu().numpy()
             test_y[i] = data_y.cpu().numpy()
             preds_y[i] = pred_y.cpu().numpy()
 
+    mean_err = np.mean(test_err)
+    std_err = np.std(test_err, ddof=1) / np.sqrt(len(test_err))
+    print(f'==Averaged relative L2 error mean: {mean_err}, std error: {std_err}==')
 
     non_dim = data_config['E'] * data_config['A0'] / (data_config['P0'] * data_config['L'])
     for i in range(3):
@@ -118,13 +175,13 @@ def test(config):
         plt.ylabel('$A/A_0$')
         plt.title(f'Input $A(x)$')
         plt.xlim([0, 1])
-        plt.ylim([0, 2])
+        plt.ylim([0, np.max(test_x[:, :, 0])])
 
         plt.subplot(1, 2, 2)
-        plt.plot(x_plot[:, 1], y_pred_plot*non_dim, 'r', label='predict sol')
-        plt.plot(x_plot[:, 1], y_true_plot*non_dim, 'b', label='exact sol')
+        plt.plot(x_plot[:, 1], y_pred_plot*non_dim, 'r-x', label='predict sol')
+        plt.plot(x_plot[:, 1], y_true_plot*non_dim, 'b-.o', mfc='none', label='exact sol')
         plt.xlabel('$x$')
-        plt.ylabel(r'$u\frac{EA_0}{P_0 L}$')
+        plt.ylabel(r'$u$')
         # plt.ylim([0, 1])
         plt.legend()
         plt.title(f'Predict and exact $u(x)$')

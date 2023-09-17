@@ -1,32 +1,37 @@
 data:
   name: 'Elastic-Bar'
-  datapath: '/home/vdtrung/machine_learning/GItHub/data/physics_informed/elastic_bar_linear_shorter_range_1025.mat'
+  datapath: '/home/vdtrung/machine_learning/GItHub/data/physics_informed/elastic_bar_nonlinear_exponential_1025.mat'
   total_num: 5000
   offset: 0
   n_sample: 1000
   nx: 1025
   sub: 8
-  A0: 0.1
-  P0: 100.0
-  E: 100000.0
+  in_dim: 2
+  out_dim: 2
+  A0: 1.0
+  P0: 1.0
+  E: 1.0
   L: 1.0
 
 model:
+  name: 'fno'
   layers: [64, 64, 64, 64, 64]
   modes: [10, 10, 10, 10]
   fc_dim: 128
   act: gelu
+  apply_output_transform: 'no'
 
 train:
   batchsize: 20
-  epochs: 500
+  epochs: 1000
   milestones: [ 100, 200, 300, 400, 500, 600, 700, 800, 900 ]
   base_lr: 0.001
   scheduler_gamma: 0.5
+  f_loss: 1.0
   bc_loss_l: 1.0
   bc_loss_r: 1.0
-  f_loss: 1.0
   xy_loss: 1.0
+  pino_loss: 'zero'
   balance_scheme: 'sum'
   save_dir: 'elastic-bar'
   save_name: 'elastic-bar-pretrain-eqn.pt'

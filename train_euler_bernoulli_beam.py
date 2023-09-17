@@ -1,11 +1,11 @@
 from argparse import ArgumentParser
 import yaml
 import torch
-from models import FNO1d
+from models import FNO1d, FCNet, NNet
 from train_utils import Adam
-from train_utils.datasets import EBBeamLoader
-from train_utils.train_1d import train_ebbeam
-from train_utils.losses import LpLoss
+from train_utils.datasets import Loader_1D
+from train_utils.train_1d import train_1d
+from train_utils.losses import LpLoss, zeros_loss, Euler_Bernoulli_Beam_FDM
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -15,23 +15,37 @@ np.random.seed(0)
 def run(config):
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
     data_config = config['data']
-    dataset = EBBeamLoader(data_config['datapath'],
-                            nx=data_config['nx'],
-                            sub=data_config['sub'])
+
+    dataset = Loader_1D(data_config['datapath'],
+                        nx=data_config['nx'],
+                        sub=data_config['sub'],
+                        in_dim=data_config['in_dim'],
+                        out_dim=data_config['out_dim'])
+
     train_loader = dataset.make_loader(n_sample=data_config['n_sample'],
                                        batch_size=config['train']['batchsize'],
                                        start=data_config['offset'])
 
     # define model
     model_config = config['model']
-    model = FNO1d(modes=model_config['modes'],
-                  fc_dim=model_config['fc_dim'],
-                  layers=model_config['layers'],
-                  act=model_config['act']).to(device)
+    if model_config['name'] == 'fno':
+        model = FNO1d(modes=model_config['modes'],
+                      fc_dim=model_config['fc_dim'],
+                      layers=model_config['layers'],
+                      out_dim=data_config['out_dim'],
+                      act=model_config['act']).to(device)
 
-    # model.apply_output_transform(
-    #     lambda t, du1, y: t * du1 + (t * (t-1)**2) * y
-    # )
+    if model_config['name'] == 'fcn':
+        model = FCNet(
+            layers=np.concatenate(([data_config['in_dim']], model_config['layers'][1:], [data_config['out_dim']]))).to(
+            device)
+    if model_config['name'] == 'nn':
+        model = NNet(layers=np.concatenate(([dataset.s], model_config['layers'][1:], [dataset.s]))).to(device)
+        # if model_config['apply_output_transform'] == 'yes':
+        #     model.apply_output_transform(
+        #         lambda x, y: x * y + 0.0
+        #     )
+
 
     # train
     train_config = config['train']
@@ -40,11 +54,14 @@ def run(config):
     scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer,
                                                      milestones=train_config['milestones'],
                                                      gamma=train_config['scheduler_gamma'])
-    train_ebbeam(model,
+    if train_config['pino_loss'] == 'zero':
+        pino_loss = zeros_loss
+    train_1d(model,
              train_loader,
              optimizer,
              scheduler,
              config,
+             pino_loss=pino_loss,
              log=False,
              use_tqdm=True)
 
@@ -61,18 +78,27 @@ def run(config):
 def test(config):
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
     data_config = config['data']
-    dataset = EBBeamLoader(data_config['datapath'],
-                         nx=data_config['nx'],
-                         sub=data_config['sub'])
+    dataset = Loader_1D(data_config['datapath'],
+                        nx=data_config['nx'],
+                        sub=data_config['sub'],
+                        in_dim=data_config['in_dim'],
+                        out_dim=data_config['out_dim'])
     data_loader = dataset.make_loader(n_sample=data_config['n_sample'],
-                                       batch_size=config['test']['batchsize'],
-                                       start=data_config['offset'])
+                                      batch_size=config['test']['batchsize'],
+                                      start=data_config['offset'])
 
     model_config = config['model']
-    model = FNO1d(modes=model_config['modes'],
-                  fc_dim=model_config['fc_dim'],
-                  layers=model_config['layers'],
-                  act=model_config['act']).to(device)
+    if model_config['name'] == 'fno':
+        model = FNO1d(modes=model_config['modes'],
+                      fc_dim=model_config['fc_dim'],
+                      layers=model_config['layers'],
+                      out_dim=data_config['out_dim'],
+                      act=model_config['act']).to(device)
+
+    if model_config['name'] == 'fcn':
+        model = FCNet(
+            layers=np.concatenate(([data_config['in_dim']], model_config['layers'][1:], [data_config['out_dim']]))).to(
+            device)
 
     # model.apply_output_transform(
     #     lambda t, du1, y: t * du1 + (t * (t - 1) ** 2) * y
@@ -89,9 +115,9 @@ def test(config):
     myloss = LpLoss(size_average=True)
     model.eval()
     s = int(np.ceil(data_config['nx']/data_config['sub']))
-    test_x = np.zeros((data_config['n_sample'], s, 2))
-    preds_y = np.zeros((data_config['n_sample'], s))
-    test_y = np.zeros((data_config['n_sample'], s))
+    test_x = np.zeros((data_config['n_sample'], s, data_config['in_dim']))
+    preds_y = np.zeros((data_config['n_sample'], s, data_config['out_dim']))
+    test_y = np.zeros((data_config['n_sample'], s, data_config['out_dim']))
     test_err = []
     with torch.no_grad():
         for i, data in enumerate(data_loader):
@@ -116,7 +142,7 @@ def test(config):
         y_pred_plot = preds_y[key]
 
         fig = plt.figure(figsize=(12, 5))
-        plt.subplot(1, 2, 1)
+        plt.subplot(1, 3, 1)
         plt.plot(x_plot[:, 1], x_plot[:, 0]/data_config['q0'])
         plt.xlabel('$x$')
         plt.ylabel('$q/q_0$')
@@ -124,14 +150,23 @@ def test(config):
         plt.xlim([0, 1])
         plt.ylim([0, 1])
 
-        plt.subplot(1, 2, 2)
-        plt.plot(x_plot[:, 1], y_pred_plot*non_dim, 'r', label='predict sol')
-        plt.plot(x_plot[:, 1], y_true_plot*non_dim, 'b', label='exact sol')
+        plt.subplot(1, 3, 2)
+        plt.plot(x_plot[:, 1], y_pred_plot[:, 0]*non_dim, 'r', label='predict sol')
+        plt.plot(x_plot[:, 1], y_true_plot[:, 0]*non_dim, 'b', label='exact sol')
         plt.xlabel('$x$')
         plt.ylabel(r'$u$')
         # plt.ylim([0, 1])
         plt.legend()
         plt.title(f'Predict and exact $u(x)$')
+
+        plt.subplot(1, 3, 3)
+        plt.plot(x_plot[:, 1], y_pred_plot[:, 1] * non_dim, 'r', label='predict sol')
+        plt.plot(x_plot[:, 1], y_true_plot[:, 1] * non_dim, 'b', label='exact sol')
+        plt.xlabel('$x$')
+        plt.ylabel(r'$M$')
+        # plt.ylim([0, 1])
+        plt.legend()
+        plt.title(f'Predict and exact $M(x)$')
         plt.tight_layout()
     plt.show()
 

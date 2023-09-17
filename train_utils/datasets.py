@@ -76,44 +76,30 @@ class MatReader(object):
     def set_float(self, to_float):
         self.to_float = to_float
 
-class OneDLoader(object):
-    def __init__(self, datapath, nx=2**10+1, sub=8):
+class Loader_1D(object):
+    def __init__(self, datapath, nx=2**10+1, sub=8, in_dim=1, out_dim=1):
         dataloader = MatReader(datapath)
         self.sub = sub
         self.s = int(np.ceil(nx / sub))
-        self.x_data = dataloader.read_field('input')[:, ::sub]
-        self.y_data = dataloader.read_field('output')[:, ::sub]
-        self.gridx = dataloader.read_field('x')[:, ::sub]
-
-    def make_loader(self, n_sample, batch_size, start=0, train=True):
-        Xs = self.x_data[start:start + n_sample]
-        ys = self.y_data[start:start + n_sample]
-
-        Xs = Xs.reshape(n_sample, self.s)
-        Xs = torch.stack([Xs, self.gridx.repeat([n_sample, 1])], dim=2)
-        dataset = torch.utils.data.TensorDataset(Xs, ys)
-        if train:
-            loader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=True)
+        self.in_dim = in_dim
+        self.out_dim = out_dim
+        if len((dataloader.read_field('input')).size()) == 2:
+            self.x_data = dataloader.read_field('input')[:, ::sub].unsqueeze(2)
         else:
-            loader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=False)
-        return loader
-
-class EBBeamLoader(object):
-    def __init__(self, datapath, nx=2**10+1, sub=8):
-        dataloader = MatReader(datapath)
-        self.sub = sub
-        self.s = int(np.ceil(nx / sub))
-        self.x_data = dataloader.read_field('input')[:, ::sub]
-        self.y_data = dataloader.read_field('output_u')[:, ::sub]
+            self.x_data = dataloader.read_field('input')[:, ::sub, :in_dim-1]
+        if len((dataloader.read_field('output')).size()) == 2:
+            self.y_data = dataloader.read_field('output')[:, ::sub].unsqueeze(2)
+        else:
+            self.y_data = dataloader.read_field('output')[:, ::sub, :out_dim]
         self.gridx = dataloader.read_field('x')[:, ::sub]
 
     def make_loader(self, n_sample, batch_size, start=0, train=True):
-        Xs = self.x_data[start:start + n_sample]
+        xs = self.x_data[start:start + n_sample]
         ys = self.y_data[start:start + n_sample]
 
-        Xs = Xs.reshape(n_sample, self.s)
-        Xs = torch.stack([Xs, self.gridx.repeat([n_sample, 1])], dim=2)
-        dataset = torch.utils.data.TensorDataset(Xs, ys)
+        xs = xs.reshape(n_sample, self.s)
+        xs = torch.stack([xs, self.gridx.repeat([n_sample, 1])], dim=2)
+        dataset = torch.utils.data.TensorDataset(xs, ys)
         if train:
             loader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=True)
         else:
