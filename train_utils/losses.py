@@ -30,6 +30,28 @@ def pino_loss_reduced_order_1d(func):
         return loss_f, loss_boundary_l, loss_boundary_r
     return inner
 
+def pino_loss_reduced_order_eb_beam_1d(func):
+    def inner(*args, **kwargs):
+        Du1, Du2, Du3, Du4, boundary_l1, boundary_l2, boundary_r1, boundary_r2 = func(*args, **kwargs)
+        f1 = torch.zeros(Du1.shape, device=args[2].device)
+        loss_f1 = F.mse_loss(Du1, f1)
+        f2 = torch.zeros(Du2.shape, device=args[2].device)
+        loss_f2 = F.mse_loss(Du2, f2)
+        f3 = torch.zeros(Du3.shape, device=args[2].device)
+        loss_f3 = F.mse_loss(Du3, f3)
+        f4 = torch.zeros(Du4.shape, device=args[2].device)
+        loss_f4 = F.mse_loss(Du4, f4)
+        loss_f = loss_f1 + loss_f2 + loss_f3 + loss_f4
+
+        loss_boundary_l = F.mse_loss(boundary_l1, torch.zeros(boundary_l1.shape, device=args[2].device)) \
+                          + F.mse_loss(boundary_l2, torch.zeros(boundary_l2.shape, device=args[2].device))
+        loss_boundary_r = F.mse_loss(boundary_r1, torch.zeros(boundary_r1.shape, device=args[2].device)) \
+                          + F.mse_loss(boundary_r2, torch.zeros(boundary_r2.shape, device=args[2].device))
+
+        return loss_f, loss_boundary_l, loss_boundary_r
+    return inner
+
+
 def FDM_Darcy(u, a, D=1):
     batchsize = u.size(0)
     size = u.size(1)
@@ -462,9 +484,51 @@ def FEM_ElasticBar(config_data, a, u):
 
     return kuf[:, 1:], boundary_l, boundary_r
 
-@pino_loss_1d
-def Euler_Bernoulli_Beam_FDM(config_data, a, u, data_loss):
-    pass
+@pino_loss_reduced_order_eb_beam_1d
+def FDM_ReducedOrder_Euler_Bernoulli_Beam1(config_data, a, u):
+    batchsize = u.size(0)
+    nx = u.size(1)
+    dx = 1 / (nx - 1)
+    EI = config_data['EI']
+    out_dim = config_data['out_dim']
+    u = u.reshape(batchsize, nx, out_dim)
+    ux = (-1 / 2 * u[:, :-2, 0] + 1 / 2 * u[:, 2:, 0]) / dx
+    phix = (-1 / 2 * u[:, :-2, 1] + 1 / 2 * u[:, 2:, 1]) / dx
+    mx = (-1 / 2 * u[:, :-2, 2] + 1 / 2 * u[:, 2:, 2]) / dx
+    vx = (-1 / 2 * u[:, :-2, 3] + 1 / 2 * u[:, 2:, 3]) / dx
+
+    Du1 = ux - u[:, 1:-1, 1]
+    Du2 = EI * phix + u[:, 1:-1, 2]
+    Du3 = mx - u[:, 1:-1, 3]
+    Du4 = vx + a[:, 1:-1]
+
+    boundary_l1 = u[:, 0, 0]
+    boundary_l2 = u[:, 0, 2]
+    boundary_r1 = u[:, -1, 0]
+    boundary_r2 = u[:, -1, 2]
+
+    return Du1, Du2, Du3, Du4, boundary_l1, boundary_l2, boundary_r1, boundary_r2
+
+@pino_loss_reduced_order_1d
+def FDM_ReducedOrder_Euler_Bernoulli_Beam2(config_data, a, u):
+    batchsize = u.size(0)
+    nx = u.size(1)
+    dx = 1 / (nx - 1)
+    EI = config_data['EI']
+    out_dim = config_data['out_dim']
+    u = u.reshape(batchsize, nx, out_dim)
+
+    uxx = (u[:, :-2, 0] - 2 * u[:, 1:-1, 0] + u[:, 2:, 0]) / dx ** 2
+    mxx = (u[:, :-2, 1] - 2 * u[:, 1:-1, 1] + u[:, 2:, 1]) / dx ** 2
+
+    Du1 = u[:, 1:-1, 1] + EI * uxx
+    Du2 = a[:, 1:-1] + mxx
+
+    boundary_l = u[:, 0, :]
+    boundary_r = u[:, -1, :]
+
+    return Du1, Du2, boundary_l, boundary_r
+
 @pino_loss_1d
 def zeros_loss(*args, **kwargs):
     return torch.zeros(1), torch.zeros(1), torch.zeros(1)

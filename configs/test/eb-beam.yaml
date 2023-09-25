@@ -18,6 +18,7 @@ model:
   modes: [10, 10, 10, 10]
   fc_dim: 128
   act: gelu
+  apply_output_transform: 'yes'
 
 test:
   batchsize: 1

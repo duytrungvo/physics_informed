@@ -5,7 +5,7 @@ from models import FNO1d, FCNet, NNet
 from train_utils import Adam
 from train_utils.datasets import Loader_1D
 from train_utils.train_1d import train_1d
-from train_utils.losses import LpLoss, zeros_loss, Euler_Bernoulli_Beam_FDM
+from train_utils.losses import LpLoss, zeros_loss, FDM_ReducedOrder_Euler_Bernoulli_Beam1, FDM_ReducedOrder_Euler_Bernoulli_Beam2
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -34,7 +34,18 @@ def run(config):
                       layers=model_config['layers'],
                       out_dim=data_config['out_dim'],
                       act=model_config['act']).to(device)
-
+        if model_config['apply_output_transform'] == 'yes' and data_config['out_dim'] == 2:
+            model.apply_output_transform(
+                [lambda x, y: x * (data_config['L'] - x) * y,
+                 lambda x, y: x * (data_config['L'] - x) * y]
+            )
+        if model_config['apply_output_transform'] == 'yes' and data_config['out_dim'] == 4:
+            model.apply_output_transform(
+                [lambda x, y: x * (data_config['L'] - x) * y,
+                 lambda x, y: y,
+                 lambda x, y: x * (data_config['L'] - x) * y,
+                 lambda x, y: y]
+            )
     if model_config['name'] == 'fcn':
         model = FCNet(
             layers=np.concatenate(([data_config['in_dim']], model_config['layers'][1:], [data_config['out_dim']]))).to(
@@ -56,6 +67,10 @@ def run(config):
                                                      gamma=train_config['scheduler_gamma'])
     if train_config['pino_loss'] == 'zero':
         pino_loss = zeros_loss
+    if train_config['pino_loss'] == 'reduced_order1':
+        pino_loss = FDM_ReducedOrder_Euler_Bernoulli_Beam1
+    if train_config['pino_loss'] == 'reduced_order2':
+        pino_loss = FDM_ReducedOrder_Euler_Bernoulli_Beam2
     train_1d(model,
              train_loader,
              optimizer,
@@ -94,15 +109,15 @@ def test(config):
                       layers=model_config['layers'],
                       out_dim=data_config['out_dim'],
                       act=model_config['act']).to(device)
-
+        if model_config['apply_output_transform'] == 'yes' and data_config['out_dim'] == 2:
+            model.apply_output_transform(
+                [lambda x, y: x * (data_config['L'] - x) * y,
+                 lambda x, y: x * (data_config['L'] - x) * y]
+            )
     if model_config['name'] == 'fcn':
         model = FCNet(
             layers=np.concatenate(([data_config['in_dim']], model_config['layers'][1:], [data_config['out_dim']]))).to(
             device)
-
-    # model.apply_output_transform(
-    #     lambda t, du1, y: t * du1 + (t * (t - 1) ** 2) * y
-    # )
 
     # Load from checkpoint
     if 'ckpt' in config['test']:
