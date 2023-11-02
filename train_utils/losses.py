@@ -514,18 +514,22 @@ def FDM_ReducedOrder_Euler_Bernoulli_Beam2(config_data, a, u):
     batchsize = u.size(0)
     nx = u.size(1)
     dx = 1 / (nx - 1)
-    EI = config_data['EI']
+    E = config_data['E']
     out_dim = config_data['out_dim']
     u = u.reshape(batchsize, nx, out_dim)
 
     uxx = (u[:, :-2, 0] - 2 * u[:, 1:-1, 0] + u[:, 2:, 0]) / dx ** 2
     mxx = (u[:, :-2, 1] - 2 * u[:, 1:-1, 1] + u[:, 2:, 1]) / dx ** 2
 
-    Du1 = u[:, 1:-1, 1] + EI * uxx
-    Du2 = a[:, 1:-1] + mxx
+    Du1 = u[:, 1:-1, 1] + E * a[:, 1:-1, 0] * uxx
+    Du2 = a[:, 1:-1, 1] + mxx
 
-    boundary_l = u[:, 0, :]
-    boundary_r = u[:, -1, :]
+    if config_data['BC'] == 'HH':
+        boundary_l = u[:, 0, :]         # w(0) = M(0) = 0
+        boundary_r = u[:, -1, :]        # w(L) = M(L) = 0
+    if config_data['BC'] == 'CF':
+        boundary_l = u[:, 0, 0]         # w(0) = 0
+        boundary_r = u[:, -1, 1]        # M(L) = 0
 
     return Du1, Du2, boundary_l, boundary_r
 

@@ -97,8 +97,9 @@ class Loader_1D(object):
         xs = self.x_data[start:start + n_sample]
         ys = self.y_data[start:start + n_sample]
 
-        xs = xs.reshape(n_sample, self.s)
-        xs = torch.stack([xs, self.gridx.repeat([n_sample, 1])], dim=2)
+        # xs = xs.reshape(n_sample, self.s)
+        # xs = torch.stack([xs, self.gridx.repeat([n_sample, 1])], dim=2)
+        xs = torch.cat((xs, self.gridx.repeat([n_sample, 1]).unsqueeze(2)), 2)
         dataset = torch.utils.data.TensorDataset(xs, ys)
         if train:
             loader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=True)

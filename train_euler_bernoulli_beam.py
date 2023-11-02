@@ -5,7 +5,8 @@ from models import FNO1d, FCNet, NNet
 from train_utils import Adam
 from train_utils.datasets import Loader_1D
 from train_utils.train_1d import train_1d
-from train_utils.losses import LpLoss, zeros_loss, FDM_ReducedOrder_Euler_Bernoulli_Beam1, FDM_ReducedOrder_Euler_Bernoulli_Beam2
+from train_utils.losses import LpLoss, zeros_loss, \
+    FDM_ReducedOrder_Euler_Bernoulli_Beam1, FDM_ReducedOrder_Euler_Bernoulli_Beam2
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -32,13 +33,21 @@ def run(config):
         model = FNO1d(modes=model_config['modes'],
                       fc_dim=model_config['fc_dim'],
                       layers=model_config['layers'],
+                      in_dim=data_config['in_dim'],
                       out_dim=data_config['out_dim'],
                       act=model_config['act']).to(device)
         if model_config['apply_output_transform'] == 'yes' and data_config['out_dim'] == 2:
-            model.apply_output_transform(
-                [lambda x, y: x * (data_config['L'] - x) * y,
-                 lambda x, y: x * (data_config['L'] - x) * y]
-            )
+            if data_config['BC'] == 'HH':
+                model.apply_output_transform(
+                    [lambda x, y: x * (data_config['L'] - x) * y,
+                     lambda x, y: x * (data_config['L'] - x) * y]
+                )
+            if data_config['BC'] == 'CF':
+                model.apply_output_transform(
+                    [lambda x, y: x * y,
+                     lambda x, y: (data_config['L'] - x) * y]
+                )
+
         if model_config['apply_output_transform'] == 'yes' and data_config['out_dim'] == 4:
             model.apply_output_transform(
                 [lambda x, y: x * (data_config['L'] - x) * y,
@@ -107,13 +116,20 @@ def test(config):
         model = FNO1d(modes=model_config['modes'],
                       fc_dim=model_config['fc_dim'],
                       layers=model_config['layers'],
+                      in_dim=data_config['in_dim'],
                       out_dim=data_config['out_dim'],
                       act=model_config['act']).to(device)
         if model_config['apply_output_transform'] == 'yes' and data_config['out_dim'] == 2:
-            model.apply_output_transform(
-                [lambda x, y: x * (data_config['L'] - x) * y,
-                 lambda x, y: x * (data_config['L'] - x) * y]
-            )
+            if data_config['BC'] == 'HH':
+                model.apply_output_transform(
+                    [lambda x, y: x * (data_config['L'] - x) * y,
+                     lambda x, y: x * (data_config['L'] - x) * y]
+                )
+            if data_config['BC'] == 'CF':
+                model.apply_output_transform(
+                    [lambda x, y: x * y,
+                     lambda x, y: (data_config['L'] - x) * y]
+                )
     if model_config['name'] == 'fcn':
         model = FCNet(
             layers=np.concatenate(([data_config['in_dim']], model_config['layers'][1:], [data_config['out_dim']]))).to(
@@ -156,31 +172,41 @@ def test(config):
         y_true_plot = test_y[key]
         y_pred_plot = preds_y[key]
 
-        fig = plt.figure(figsize=(12, 5))
-        plt.subplot(1, 3, 1)
-        plt.plot(x_plot[:, 1], x_plot[:, 0]/data_config['q0'])
+        fig = plt.figure(figsize=(10, 12))
+        plt.subplot(4, 1, 1)
+        plt.plot(x_plot[:, -1], x_plot[:, 0] / data_config['I0'])
+        plt.xlabel('$x$')
+        plt.ylabel('$I/I_0$')
+        plt.title(f'Input $I(x)$')
+        plt.xlim([0, 1])
+        plt.ylim([0, 1])
+
+        plt.subplot(4, 1, 2)
+        plt.plot(x_plot[:, -1], x_plot[:, 1]/data_config['q0'])
         plt.xlabel('$x$')
         plt.ylabel('$q/q_0$')
         plt.title(f'Input $q(x)$')
         plt.xlim([0, 1])
         plt.ylim([0, 1])
 
-        plt.subplot(1, 3, 2)
-        plt.plot(x_plot[:, 1], y_pred_plot[:, 0]*non_dim, 'r', label='predict sol')
-        plt.plot(x_plot[:, 1], y_true_plot[:, 0]*non_dim, 'b', label='exact sol')
+        plt.subplot(4, 1, 3)
+        plt.plot(x_plot[:, -1], y_pred_plot[:, 0]*non_dim, 'r', label='predict sol')
+        plt.plot(x_plot[:, -1], y_true_plot[:, 0]*non_dim, 'b', label='exact sol')
         plt.xlabel('$x$')
-        plt.ylabel(r'$u$')
+        plt.ylabel(r'$w$')
         # plt.ylim([0, 1])
         plt.legend()
-        plt.title(f'Predict and exact $u(x)$')
+        plt.grid(visible=True)
+        plt.title(f'Predict and exact $w(x)$')
 
-        plt.subplot(1, 3, 3)
-        plt.plot(x_plot[:, 1], y_pred_plot[:, 1] * non_dim, 'r', label='predict sol')
-        plt.plot(x_plot[:, 1], y_true_plot[:, 1] * non_dim, 'b', label='exact sol')
+        plt.subplot(4, 1, 4)
+        plt.plot(x_plot[:, -1], y_pred_plot[:, 1] * non_dim, 'r', label='predict sol')
+        plt.plot(x_plot[:, -1], y_true_plot[:, 1] * non_dim, 'b', label='exact sol')
         plt.xlabel('$x$')
         plt.ylabel(r'$M$')
         # plt.ylim([0, 1])
         plt.legend()
+        plt.grid(visible=True)
         plt.title(f'Predict and exact $M(x)$')
         plt.tight_layout()
     plt.show()

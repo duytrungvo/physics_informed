@@ -59,7 +59,7 @@ def train_1d(model,
 
             # loss
             data_loss = myloss(out, y)
-            f_loss, bc_loss_l, bc_loss_r = pino_loss(config['data'], x[:, :, 0], out)
+            f_loss, bc_loss_l, bc_loss_r = pino_loss(config['data'], x[:, :, :-1], out)
 
             # balance scheme
             losses = {'f_loss': f_loss, 'bc_loss_l': bc_loss_l, 'bc_loss_r': bc_loss_r, 'data_loss': data_loss}

@@ -67,7 +67,7 @@ class FNO1d(nn.Module):
         x = self.fc2(x)
 
         if self._output_transform is not None:
-            x = [f(inputs[:, :, 1], x[:, :, i]) for i, f in enumerate(self._output_transform)]
+            x = [f(inputs[:, :, -1], x[:, :, i]) for i, f in enumerate(self._output_transform)]
             x = torch.stack(x, dim=2)
         return x
 
