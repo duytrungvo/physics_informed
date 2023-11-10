@@ -1,9 +1,9 @@
 data:
   name: 'Euler-Bernoulli Beam'
-  datapath: '/home/vdtrung/machine_learning/GItHub/data/physics_informed/eb_beam/eb_beam_exponential_1025.mat'
+  datapath: '/home/vdtrung/machine_learning/GItHub/data/physics_informed/eb_beam/eb_beam_linear_CF_CF_1025_const_EI.mat'
   total_num: 5000
   offset: 1000
-  n_sample: 240
+  n_sample: 250
   nx: 1025
   sub: 8
   in_dim: 3

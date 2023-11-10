@@ -1,6 +1,6 @@
 data:
   name: 'Euler-Bernoulli Beam'
-  datapath: '/home/vdtrung/machine_learning/GItHub/data/physics_informed/eb_beam/eb_beam_linear_CF_1025.mat'
+  datapath: '/home/vdtrung/machine_learning/GItHub/data/physics_informed/eb_beam/eb_beam_linear_CF_HH_1025_const_EI.mat'
   total_num: 5000
   offset: 0
   n_sample: 1000
@@ -12,7 +12,7 @@ data:
   E: 1.0
   I0: 1.0
   L: 1.0
-  BC: 'CF'
+  BC: 'HH'
 
 model:
   name: 'fno'
@@ -32,7 +32,7 @@ train:
   bc_loss_l: 0.0
   bc_loss_r: 0.0
   xy_loss: 0.0            # weight loss of datum information
-  pino_loss: 'reduced_order2'
+  pino_loss: 'reduced_o2_bsf'
   balance_scheme: 'sum'
   save_dir: 'eb-beam'
   save_name: 'eb-beam-pretrain-eqn.pt'

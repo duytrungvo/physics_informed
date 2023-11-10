@@ -533,6 +533,34 @@ def FDM_ReducedOrder_Euler_Bernoulli_Beam2(config_data, a, u):
 
     return Du1, Du2, boundary_l, boundary_r
 
+@pino_loss_reduced_order_1d
+def FDM_ReducedOrder_Euler_Bernoulli_Beam2_BSF(config_data, a, u):
+    batchsize = u.size(0)
+    nx = u.size(1)
+    dx = 1 / (nx - 1)
+    E = config_data['E']
+    L = config_data['L']
+    out_dim = config_data['out_dim']
+    u = u.reshape(batchsize, nx, out_dim)
+
+    mxx = (u[:, :-2, 1] - 2 * u[:, 1:-1, 1] + u[:, 2:, 1]) / dx ** 2
+    uxx = (u[:, :-2, 0] - 2 * u[:, 1:-1, 0] + u[:, 2:, 0]) / dx ** 2
+
+    Du1 = mxx + a[:, 1:-1, 1]
+    # mn = -u[:, -2, 1] / dx
+    mn = (0.5 * u[:, -3, 1] - 2 * u[:, -2, 1]) / dx
+    dmdxL = torch.repeat_interleave(mn, nx-2, dim=0).reshape((batchsize, nx-2))
+    Du2 = E * a[:, 1:-1, 0] * uxx + u[:, 1:-1, 1] - (a[:, 1:-1, -1] - L) * dmdxL
+
+    if config_data['BC'] == 'HH':
+        boundary_l = u[:, 0, :]         # w(0) = M(0) = 0
+        boundary_r = u[:, -1, :]        # w(L) = M(L) = 0
+    if config_data['BC'] == 'CF':
+        boundary_l = u[:, 0, 0]         # w(0) = 0
+        boundary_r = u[:, -1, 1]        # M(L) = 0
+
+    return Du1, Du2, boundary_l, boundary_r
+
 @pino_loss_1d
 def zeros_loss(*args, **kwargs):
     return torch.zeros(1), torch.zeros(1), torch.zeros(1)
