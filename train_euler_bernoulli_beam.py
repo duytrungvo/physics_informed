@@ -38,24 +38,11 @@ def run(config):
                       out_dim=data_config['out_dim'],
                       act=model_config['act']).to(device)
         if model_config['apply_output_transform'] == 'yes' and data_config['out_dim'] == 2:
-            if data_config['BC'] == 'HH':
-                model.apply_output_transform(
-                    [lambda x, y: x * (data_config['L'] - x) * y,
-                     lambda x, y: x * (data_config['L'] - x) * y]
-                )
-            if data_config['BC'] == 'CF':
-                model.apply_output_transform(
-                    [lambda x, y: x * y,
-                     lambda x, y: (data_config['L'] - x) * y]
-                )
-
-        if model_config['apply_output_transform'] == 'yes' and data_config['out_dim'] == 4:
             model.apply_output_transform(
                 [lambda x, y: x * (data_config['L'] - x) * y,
-                 lambda x, y: y,
-                 lambda x, y: x * (data_config['L'] - x) * y,
-                 lambda x, y: y]
+                 lambda x, y: x * (data_config['L'] - x) * y]
             )
+
     if model_config['name'] == 'fcn':
         model = FCNet(
             layers=np.concatenate(([data_config['in_dim']], model_config['layers'][1:], [data_config['out_dim']]))).to(
@@ -123,16 +110,11 @@ def test(config):
                       out_dim=data_config['out_dim'],
                       act=model_config['act']).to(device)
         if model_config['apply_output_transform'] == 'yes' and data_config['out_dim'] == 2:
-            if data_config['BC'] == 'HH':
-                model.apply_output_transform(
-                    [lambda x, y: x * (data_config['L'] - x) * y,
-                     lambda x, y: x * (data_config['L'] - x) * y]
-                )
-            if data_config['BC'] == 'CF':
-                model.apply_output_transform(
-                    [lambda x, y: x * y,
-                     lambda x, y: (data_config['L'] - x) * y]
-                )
+            model.apply_output_transform(
+                [lambda x, y: x * (data_config['L'] - x) * y,
+                 lambda x, y: x * (data_config['L'] - x) * y]
+            )
+
     if model_config['name'] == 'fcn':
         model = FCNet(
             layers=np.concatenate(([data_config['in_dim']], model_config['layers'][1:], [data_config['out_dim']]))).to(
@@ -235,16 +217,10 @@ def test_bsf(config):
                       out_dim=data_config['out_dim'],
                       act=model_config['act']).to(device)
         if model_config['apply_output_transform'] == 'yes' and data_config['out_dim'] == 2:
-            if data_config['BC'] == 'HH':
-                model.apply_output_transform(
-                    [lambda x, y: x * (data_config['L'] - x) * y,
-                     lambda x, y: x * (data_config['L'] - x) * y]
-                )
-            if data_config['BC'] == 'CF':
-                model.apply_output_transform(
-                    [lambda x, y: x * y,
-                     lambda x, y: (data_config['L'] - x) * y]
-                )
+            model.apply_output_transform(
+                [lambda x, y: x * (data_config['L'] - x) * y,
+                 lambda x, y: x * (data_config['L'] - x) * y]
+            )
     if model_config['name'] == 'fcn':
         model = FCNet(
             layers=np.concatenate(([data_config['in_dim']], model_config['layers'][1:], [data_config['out_dim']]))).to(
@@ -274,15 +250,28 @@ def test_bsf(config):
             data_x, data_y = data_x.to(device), data_y.to(device)
             pred_y = model(data_x).reshape(data_y.shape)
 
-            w0 = (2 * pred_y[:, 1, 0] - 0.5 * pred_y[:, 2, 0]) / dx
-            dwdx0 = torch.repeat_interleave(w0, s, dim=0).reshape((batchsize, s))
-            pred_y0 = pred_y[:, :, 0] - data_x[:, :, -1] * dwdx0
+            if config['data']['BC'] == 'CF':
+                w0 = (2 * pred_y[:, 1, 0] - 0.5 * pred_y[:, 2, 0]) / dx
+                dwdx0 = torch.repeat_interleave(w0, s, dim=0).reshape((batchsize, s))
+                pred_y0 = pred_y[:, :, 0] - data_x[:, :, -1] * dwdx0
 
-            mn = (0.5 * pred_y[:, -3, 1] - 2 * pred_y[:, -2, 1]) / dx
-            dmdxL = torch.repeat_interleave(mn, s, dim=0).reshape((batchsize, s))
-            pred_y1 = pred_y[:, :, 1] - (data_x[:, :, -1] - L) * dmdxL
+                mn = (0.5 * pred_y[:, -3, 1] - 2 * pred_y[:, -2, 1]) / dx
+                dmdxL = torch.repeat_interleave(mn, s, dim=0).reshape((batchsize, s))
+                pred_y1 = pred_y[:, :, 1] - (data_x[:, :, -1] - L) * dmdxL
 
-            pred_y_bst = torch.stack((pred_y0, pred_y1), 2)
+                pred_y_bst = torch.stack((pred_y0, pred_y1), 2)
+
+            if config['data']['BC'] == 'CH':
+                w0 = (2 * pred_y[:, 1, 0] - 0.5 * pred_y[:, 2, 0]) / dx
+                dwdx0 = torch.repeat_interleave(w0, s, dim=0).reshape((batchsize, s))
+                pred_y0 = pred_y[:, :, 0] - (data_x[:, :, -1] - data_x[:, :, -1] * data_x[:, :, -1] / L) * dwdx0
+
+                pred_y1 = pred_y[:, :, 1]
+
+                pred_y_bst = torch.stack((pred_y0, pred_y1), 2)
+
+            if config['data']['BC'] == 'HH':
+                pred_y_bst = pred_y
 
             data_loss = myloss(pred_y_bst, data_y)
             test_err.append(data_loss.item())

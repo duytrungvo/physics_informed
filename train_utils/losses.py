@@ -546,18 +546,25 @@ def FDM_ReducedOrder_Euler_Bernoulli_Beam2_BSF(config_data, a, u):
     mxx = (u[:, :-2, 1] - 2 * u[:, 1:-1, 1] + u[:, 2:, 1]) / dx ** 2
     uxx = (u[:, :-2, 0] - 2 * u[:, 1:-1, 0] + u[:, 2:, 0]) / dx ** 2
 
-    Du1 = mxx + a[:, 1:-1, 1]
-    # mn = -u[:, -2, 1] / dx
-    mn = (0.5 * u[:, -3, 1] - 2 * u[:, -2, 1]) / dx
-    dmdxL = torch.repeat_interleave(mn, nx-2, dim=0).reshape((batchsize, nx-2))
-    Du2 = E * a[:, 1:-1, 0] * uxx + u[:, 1:-1, 1] - (a[:, 1:-1, -1] - L) * dmdxL
-
     if config_data['BC'] == 'HH':
-        boundary_l = u[:, 0, :]         # w(0) = M(0) = 0
-        boundary_r = u[:, -1, :]        # w(L) = M(L) = 0
+        Du1 = mxx + a[:, 1:-1, 1]
+        Du2 = E * a[:, 1:-1, 0] * uxx + u[:, 1:-1, 1]
+
     if config_data['BC'] == 'CF':
-        boundary_l = u[:, 0, 0]         # w(0) = 0
-        boundary_r = u[:, -1, 1]        # M(L) = 0
+        Du1 = mxx + a[:, 1:-1, 1]
+        # mn = -u[:, -2, 1] / dx
+        mn = (0.5 * u[:, -3, 1] - 2 * u[:, -2, 1]) / dx
+        dmdxL = torch.repeat_interleave(mn, nx - 2, dim=0).reshape((batchsize, nx - 2))
+        Du2 = E * a[:, 1:-1, 0] * uxx + u[:, 1:-1, 1] - (a[:, 1:-1, -1] - L) * dmdxL
+
+    if config_data['BC'] == 'CH':
+        Du1 = mxx + a[:, 1:-1, 1]
+        w0 = (2 * u[:, 1, 0] - 0.5 * u[:, 2, 0]) / dx
+        dwdx0 = torch.repeat_interleave(w0, nx - 2, dim=0).reshape((batchsize, nx - 2))
+        Du2 = E * a[:, 1:-1, 0] * uxx + u[:, 1:-1, 1] + 2 * E * a[:, 1:-1, 0] * dwdx0 / L
+
+    boundary_l = u[:, 0, :]  # w(0) = M(0) = 0
+    boundary_r = u[:, -1, :]  # w(L) = M(L) = 0
 
     return Du1, Du2, boundary_l, boundary_r
 
