@@ -1,6 +1,6 @@
 data:
   name: 'Euler-Bernoulli Beam'
-  datapath: '/home/vdtrung/machine_learning/GItHub/data/physics_informed/eb_beam/eb_beam_linear_HH_1025.mat'
+  datapath: '/home/vdtrung/machine_learning/GItHub/data/physics_informed/eb_beam/eb_beam_linear_CC_1025.mat'
   total_num: 5000
   offset: 0
   n_sample: 1000
@@ -12,7 +12,7 @@ data:
   E: 1.0
   I0: 1.0
   L: 1.0
-  BC: 'HH'
+  BC: 'CC'
 
 model:
   name: 'fno'
@@ -24,8 +24,9 @@ model:
 
 train:
   batchsize: 20
-  epochs: 1000
-  milestones: [ 100, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 1100, 1200, 1300, 1400, 1500, 1600, 1700, 1800, 1900]
+  epochs: 2000
+  milestones: [ 100, 200, 300, 400, 500, 600, 700, 800, 900, 1000,
+                1100, 1200, 1300, 1400, 1500, 1600, 1700, 1800, 1900]
   base_lr: 0.001
   scheduler_gamma: 0.5
   f_loss: 1.0             # weight loss of physic information
