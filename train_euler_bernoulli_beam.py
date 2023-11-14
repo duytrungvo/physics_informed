@@ -259,21 +259,31 @@ def test_bsf(config):
             if config['data']['BC'] == 'CF' and data_config['out_dim'] == 2:
                 dw0 = (2 * pred_y[:, 1, 0] - 0.5 * pred_y[:, 2, 0]) / dx
                 dwdx0 = torch.repeat_interleave(dw0, s, dim=0).reshape((batchsize, s))
-                pred_y0 = pred_y[:, :, 0] - data_x[:, :, -1] * dwdx0
+                x = data_x[:, :, -1]
+                p2 = x
+                G1 = p2 * dwdx0
+                pred_y0 = pred_y[:, :, 0] - G1
 
                 dmL = (0.5 * pred_y[:, -3, 1] - 2 * pred_y[:, -2, 1]) / dx
                 dmdxL = torch.repeat_interleave(dmL, s, dim=0).reshape((batchsize, s))
-                pred_y1 = pred_y[:, :, 1] - (data_x[:, :, -1] - L) * dmdxL
+                p4 = x - L
+                G2 = p4 * dmdxL
+                pred_y1 = pred_y[:, :, 1] - G2
 
                 pred_y_bsf = torch.stack((pred_y0, pred_y1), 2)
 
             if config['data']['BC'] == 'CH' and data_config['out_dim'] == 2:
                 dw0 = (2 * pred_y[:, 1, 0] - 0.5 * pred_y[:, 2, 0]) / dx
                 dwdx0 = torch.repeat_interleave(dw0, s, dim=0).reshape((batchsize, s))
-                pred_y0 = pred_y[:, :, 0] - (data_x[:, :, -1] - 1 / L * data_x[:, :, -1] ** 2) * dwdx0
+                x = data_x[:, :, -1]
+                p2 = x - (1 / L) * x ** 2
+                G1 = p2 * dwdx0
+                pred_y0 = pred_y[:, :, 0] - G1
 
                 mL = torch.repeat_interleave(pred_y[:, -1, 1], s, dim=0).reshape((batchsize, s))
-                pred_y1 = pred_y[:, :, 1] - mL
+                p4 = 1
+                G2 = p4 * mL
+                pred_y1 = pred_y[:, :, 1] - G2
 
                 pred_y_bsf = torch.stack((pred_y0, pred_y1), 2)
 
@@ -282,11 +292,11 @@ def test_bsf(config):
                 dwdx0 = torch.repeat_interleave(dw0, s, dim=0).reshape((batchsize, s))
                 dwL = (0.5 * pred_y[:, -3, 0] - 2 * pred_y[:, -2, 0]) / dx
                 dwdxL = torch.repeat_interleave(dwL, s, dim=0).reshape((batchsize, s))
-                pred_y0 = pred_y[:, :, 0] \
-                          - (data_x[:, :, -1] - 2 / L * data_x[:, :, -1] ** 2
-                             + 1 / L**2 * data_x[:, :, -1] ** 3) * dwdx0 \
-                          - (- 1 / L * data_x[:, :, -1] ** 2
-                             + 1 / L**2 * data_x[:, :, -1] ** 3) * dwdxL
+                x = data_x[:, :, -1]
+                p2 = x - (2 / L) * x ** 2 + (1 / L ** 2) * x ** 3
+                p4 = (- 1 / L) * x ** 2 + (1 / L ** 2) * x ** 3
+                G1 = p2 * dwdx0 + p4 * dwdxL
+                pred_y0 = pred_y[:, :, 0] - G1
 
                 pred_y1 = pred_y[:, :, 1]
 
@@ -295,7 +305,9 @@ def test_bsf(config):
             if config['data']['BC'] == 'HH' and data_config['out_dim'] == 2:
                 pred_y_bsf = pred_y
 
-            data_loss = myloss(pred_y_bsf, data_y)
+            # data_loss = myloss(pred_y_bsf, data_y)
+            data_loss = myloss(pred_y_bsf[:, :, 0], data_y[:, :, 0])
+            # data_loss = myloss(pred_y_bsf[:, :, 1], data_y[:, :, 1])
             test_err.append(data_loss.item())
             test_x[i] = data_x.cpu().numpy()
             test_y[i] = data_y.cpu().numpy()

@@ -545,33 +545,42 @@ def FDM_ReducedOrder2_Euler_Bernoulli_Beam_BSF(config_data, a, u):
 
     mxx = (u[:, :-2, 1] - 2 * u[:, 1:-1, 1] + u[:, 2:, 1]) / dx ** 2
     uxx = (u[:, :-2, 0] - 2 * u[:, 1:-1, 0] + u[:, 2:, 0]) / dx ** 2
+    I = a[:, 1:-1, 0]
+    q = a[:, 1:-1, 1]
+    x = a[:, 1:-1, -1]
+    m = u[:, 1:-1, 1]
 
     if config_data['BC'] == 'HH':
-        Du1 = mxx + a[:, 1:-1, 1]
-        Du2 = E * a[:, 1:-1, 0] * uxx + u[:, 1:-1, 1]
+        Du1 = mxx + q
+        Du2 = E * I * uxx + m
 
     if config_data['BC'] == 'CF':
-        Du1 = mxx + a[:, 1:-1, 1]
+        Du1 = mxx + q
         dmL = (0.5 * u[:, -3, 1] - 2 * u[:, -2, 1]) / dx
         dmdxL = torch.repeat_interleave(dmL, nx - 2, dim=0).reshape((batchsize, nx - 2))
-        Du2 = E * a[:, 1:-1, 0] * uxx + u[:, 1:-1, 1] - (a[:, 1:-1, -1] - L) * dmdxL
+        p4 = x - L
+        Du2 = E * I * uxx + m - p4 * dmdxL
 
     if config_data['BC'] == 'CH':
-        Du1 = mxx + a[:, 1:-1, 1]
+        Du1 = mxx + q
         dw0 = (2 * u[:, 1, 0] - 0.5 * u[:, 2, 0]) / dx
         dwdx0 = torch.repeat_interleave(dw0, nx - 2, dim=0).reshape((batchsize, nx - 2))
         mL = torch.repeat_interleave(u[:, -1, 1], nx - 2, dim=0).reshape((batchsize, nx - 2))
-        Du2 = E * a[:, 1:-1, 0] * uxx + u[:, 1:-1, 1] + 2 * E * a[:, 1:-1, 0] * dwdx0 / L - mL
+        d2p2dx2 = - 2 / L
+        p4 = 1
+        Du2 = E * I * (uxx - d2p2dx2 * dwdx0) + m - p4 * mL
+        # Du2 = E * I * uxx + m - E * I * d2p2dx2 * dwdx0 - p4 * mL
 
     if config_data['BC'] == 'CC':
-        Du1 = mxx + a[:, 1:-1, 1]
+        Du1 = mxx + q
         dw0 = (2 * u[:, 1, 0] - 0.5 * u[:, 2, 0]) / dx
         dwdx0 = torch.repeat_interleave(dw0, nx - 2, dim=0).reshape((batchsize, nx - 2))
         dwL = (0.5 * u[:, -3, 0] - 2 * u[:, -2, 0]) / dx
         dwdxL = torch.repeat_interleave(dwL, nx - 2, dim=0).reshape((batchsize, nx - 2))
-        Du2 = E * a[:, 1:-1, 0] * uxx + u[:, 1:-1, 1] \
-              - E * a[:, 1:-1, 0] * (-4 / L + 6 / L**2 * a[:, 1:-1, -1]) * dwdx0 \
-              - E * a[:, 1:-1, 0] * (-2 / L + 6 / L**2 * a[:, 1:-1, -1]) * dwdxL
+        d2p2dx2 = - 4 / L + 6 / L**2 * x
+        d2p4dx2 = - 2 / L + 6 / L**2 * x
+        Du2 = E * I * (uxx - d2p2dx2 * dwdx0 - d2p4dx2 * dwdxL) + m
+        # Du2 = E * I * uxx + m - E * I * (d2p2dx2 * dwdx0 + d2p4dx2 * dwdxL)
 
     boundary_l = u[:, 0, :]  # w(0) = M(0) = 0
     boundary_r = u[:, -1, :]  # w(L) = M(L) = 0
