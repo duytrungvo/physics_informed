@@ -1,7 +1,7 @@
 import torch
 from .losses import LpLoss, zeros_loss
 from tqdm import tqdm
-from .utils import save_checkpoint, save_loss
+from .utils import save_checkpoint, save_loss, shape_function
 # from softadapt import SoftAdapt, LossWeightedSoftAdapt
 from train_utils.aggregator import Relobralo, SoftAdapt, Sum
 
@@ -45,7 +45,12 @@ def train_1d(model,
                                weights=weight_loss)
 
     count_update_weight = 0
-
+    bc = torch.zeros(train_loader.batch_size, train_loader.dataset[0][0].size(0), 16)
+    if config['train']['pino_loss'] == 'reduced_o2_bsf':
+        batchsize = train_loader.batch_size
+        nx = train_loader.dataset[0][0].size(0)
+        x_loss = train_loader.dataset[0][0][:, -1].repeat(batchsize).reshape(batchsize, nx)
+        bc = shape_function(config['data']['BC'], x_loss, config['data']['L'])
     for e in pbar:
         model.train()
         physic_mse = 0.0
@@ -59,7 +64,7 @@ def train_1d(model,
 
             # loss
             data_loss = myloss(out, y)
-            f_loss, bc_loss_l, bc_loss_r = pino_loss(config['data'], x, out)
+            f_loss, bc_loss_l, bc_loss_r = pino_loss(config['data'], x, out, bc)
 
             # balance scheme
             losses = {'f_loss': f_loss, 'bc_loss_l': bc_loss_l, 'bc_loss_r': bc_loss_r, 'data_loss': data_loss}

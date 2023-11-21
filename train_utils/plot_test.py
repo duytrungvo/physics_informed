@@ -14,9 +14,10 @@ from train_utils.datasets import BurgersLoader
 from models import FNO2d
 import matplotlib.pyplot as plt
 
-def plot_pred(data_config, test_x, test_y, preds_y):
+def plot_pred(data_config, test_x, test_y, preds_y, error_index):
     for i in range(3):
-        key = np.random.randint(0, data_config['n_sample'])
+        # key = np.random.randint(0, data_config['n_sample'])
+        key = error_index[-1-i]
         x_plot = test_x[key]
         y_true_plot = test_y[key]
         y_pred_plot = preds_y[key]

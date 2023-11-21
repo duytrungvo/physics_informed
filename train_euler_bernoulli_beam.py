@@ -9,6 +9,7 @@ from train_utils.losses import LpLoss, zeros_loss, \
     FDM_ReducedOrder1_Euler_Bernoulli_Beam, FDM_ReducedOrder2_Euler_Bernoulli_Beam, \
     FDM_ReducedOrder2_Euler_Bernoulli_Beam_BSF, FDM_BSF_Euler_Bernoulli_Beam
 from train_utils.plot_test import plot_pred
+from train_utils.utils import shape_function, boundary_function
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -31,6 +32,7 @@ def run(config):
 
     # define model
     model_config = config['model']
+    L = data_config['L']
     if model_config['name'] == 'fno':
         model = FNO1d(modes=model_config['modes'],
                       fc_dim=model_config['fc_dim'],
@@ -39,24 +41,33 @@ def run(config):
                       out_dim=data_config['out_dim'],
                       act=model_config['act']).to(device)
         if model_config['apply_output_transform'] == 'yes' and data_config['out_dim'] == 1:
+            # model.apply_output_transform(
+            #     [lambda x, y: x * (L - x) * y]
+            # )
             model.apply_output_transform(
-                [lambda x, y: x * (data_config['L'] - x) * y]
+                [lambda x, y: ((1 / L**2) * x ** 2 - (2 / L ** 3) * x ** 3 + (1 / L ** 4) * x ** 4) * y]
             )
         if model_config['apply_output_transform'] == 'yes' and data_config['out_dim'] == 2:
             if data_config['BC'] == 'CH':
                 model.apply_output_transform(
-                    [lambda x, y: x * (data_config['L'] - x) * y,
-                     lambda x, y: (data_config['L'] - x) * y]
+                    # [lambda x, y: x * (L - x) * y,
+                    #  lambda x, y: (L - x) * y]
+                    [lambda x, y: (- (1 / L) * x ** 2 + (1 / L ** 2) * x ** 3) * y,
+                    lambda x, y: (1 - x / L) * y]
                 )
             elif data_config['BC'] == 'CC':
                 model.apply_output_transform(
-                    [lambda x, y: x * (data_config['L'] - x) * y,
+                    # [lambda x, y: x * (L - x) * y,
+                    #  lambda x, y: y]
+                    # [lambda x, y: (- (1 / L) * x ** 2 + (1 / L ** 2) * x ** 3) * y,
+                    #  lambda x, y: y]
+                    [lambda x, y: ((1 / L**2) * x ** 2 - (2 / L ** 3) * x ** 3 + (1 / L ** 4) * x ** 4) * y,
                      lambda x, y: y]
                 )
             else:
                 model.apply_output_transform(
-                    [lambda x, y: x * (data_config['L'] - x) * y,
-                     lambda x, y: x * (data_config['L'] - x) * y]
+                    [lambda x, y: x * (L - x) * y,
+                     lambda x, y: x * (L - x) * y]
                 )
 
     if model_config['name'] == 'fcn':
@@ -187,6 +198,7 @@ def test_bsf(config):
                                       start=data_config['offset'])
 
     model_config = config['model']
+    L = data_config['L']
     if model_config['name'] == 'fno':
         model = FNO1d(modes=model_config['modes'],
                       fc_dim=model_config['fc_dim'],
@@ -196,23 +208,29 @@ def test_bsf(config):
                       act=model_config['act']).to(device)
         if model_config['apply_output_transform'] == 'yes' and data_config['out_dim'] == 1:
             model.apply_output_transform(
-                [lambda x, y: x * (data_config['L'] - x) * y]
+                [lambda x, y: x * (L - x) * y]
             )
         if model_config['apply_output_transform'] == 'yes' and data_config['out_dim'] == 2:
             if data_config['BC'] == 'CH':
                 model.apply_output_transform(
-                    [lambda x, y: x * (data_config['L'] - x) * y,
-                     lambda x, y: (data_config['L'] - x) * y]
+                    # [lambda x, y: x * (L - x) * y,
+                    #  lambda x, y: (L - x) * y]
+                    [lambda x, y: (- (1 / L) * x ** 2 + (1 / L ** 2) * x ** 3) * y,
+                    lambda x, y: (1 - x / L) * y]
                 )
             elif data_config['BC'] == 'CC':
                 model.apply_output_transform(
-                    [lambda x, y: x * (data_config['L'] - x) * y,
+                    # [lambda x, y: x * (L - x) * y,
+                    #  lambda x, y: y]
+                    # [lambda x, y: (- (1 / L) * x ** 2 + (1 / L ** 2) * x ** 3) * y,
+                    #  lambda x, y: y]
+                    [lambda x, y: ((1 / L**2) * x ** 2 - (2 / L ** 3) * x ** 3 + (1 / L ** 4) * x ** 4) * y,
                      lambda x, y: y]
                 )
             else:
                 model.apply_output_transform(
-                    [lambda x, y: x * (data_config['L'] - x) * y,
-                     lambda x, y: x * (data_config['L'] - x) * y]
+                    [lambda x, y: x * (L - x) * y,
+                     lambda x, y: x * (L - x) * y]
                 )
     if model_config['name'] == 'fcn':
         model = FCNet(
@@ -234,90 +252,45 @@ def test_bsf(config):
     preds_y = np.zeros((data_config['n_sample'], s, data_config['out_dim']))
     test_y = np.zeros((data_config['n_sample'], s, data_config['out_dim']))
     test_err = []
+    test_err_w = []
+    test_err_m = []
     batchsize = config['test']['batchsize']
     dx = 1 / (s - 1)
-    L = data_config['L']
+    x_test = data_loader.dataset[0][0][:, -1].repeat(batchsize).reshape(batchsize, s)
+    bc = shape_function(data_config['BC'], x_test, L)
     with torch.no_grad():
         for i, data in enumerate(data_loader):
             data_x, data_y = data
             data_x, data_y = data_x.to(device), data_y.to(device)
             pred_y = model(data_x).reshape(data_y.shape)
 
-            if config['data']['BC'] == 'CC' and data_config['out_dim'] == 1:
-                dw0 = (2 * pred_y[:, 1, 0] - 0.5 * pred_y[:, 2, 0]) / dx
-                dwdx0 = torch.repeat_interleave(dw0, s, dim=0).reshape((batchsize, s))
-                dwL = (0.5 * pred_y[:, -3, 0] - 2 * pred_y[:, -2, 0]) / dx
-                dwdxL = torch.repeat_interleave(dwL, s, dim=0).reshape((batchsize, s))
-                pred_y0 = pred_y[:, :, 0] \
-                    - (data_x[:, :, -1] - 2 / L * data_x[:, :, -1] ** 2
-                       + 1 / L**2 * data_x[:, :, -1] ** 3) * dwdx0 \
-                    - (- 1 / L * data_x[:, :, -1] ** 2
-                       + 1 / L**2 * data_x[:, :, -1] ** 3) * dwdxL
+            G1, G2, _, _, _, _ = boundary_function(pred_y[:, :, 0], pred_y[:, :, 1], bc, s, dx, data_config['BC'])
 
-                pred_y_bsf = pred_y0.reshape(data_y.shape)
+            pred_y0 = pred_y[:, :, 0] - G1
+            pred_y1 = pred_y[:, :, 1] - G2
+            pred_y_bsf = torch.stack((pred_y0, pred_y1), 2)
 
-            if config['data']['BC'] == 'CF' and data_config['out_dim'] == 2:
-                dw0 = (2 * pred_y[:, 1, 0] - 0.5 * pred_y[:, 2, 0]) / dx
-                dwdx0 = torch.repeat_interleave(dw0, s, dim=0).reshape((batchsize, s))
-                x = data_x[:, :, -1]
-                p2 = x
-                G1 = p2 * dwdx0
-                pred_y0 = pred_y[:, :, 0] - G1
-
-                dmL = (0.5 * pred_y[:, -3, 1] - 2 * pred_y[:, -2, 1]) / dx
-                dmdxL = torch.repeat_interleave(dmL, s, dim=0).reshape((batchsize, s))
-                p4 = x - L
-                G2 = p4 * dmdxL
-                pred_y1 = pred_y[:, :, 1] - G2
-
-                pred_y_bsf = torch.stack((pred_y0, pred_y1), 2)
-
-            if config['data']['BC'] == 'CH' and data_config['out_dim'] == 2:
-                dw0 = (2 * pred_y[:, 1, 0] - 0.5 * pred_y[:, 2, 0]) / dx
-                dwdx0 = torch.repeat_interleave(dw0, s, dim=0).reshape((batchsize, s))
-                x = data_x[:, :, -1]
-                p2 = x - (1 / L) * x ** 2
-                G1 = p2 * dwdx0
-                pred_y0 = pred_y[:, :, 0] - G1
-
-                mL = torch.repeat_interleave(pred_y[:, -1, 1], s, dim=0).reshape((batchsize, s))
-                p4 = 1
-                G2 = p4 * mL
-                pred_y1 = pred_y[:, :, 1] - G2
-
-                pred_y_bsf = torch.stack((pred_y0, pred_y1), 2)
-
-            if config['data']['BC'] == 'CC' and data_config['out_dim'] == 2:
-                dw0 = (2 * pred_y[:, 1, 0] - 0.5 * pred_y[:, 2, 0]) / dx
-                dwdx0 = torch.repeat_interleave(dw0, s, dim=0).reshape((batchsize, s))
-                dwL = (0.5 * pred_y[:, -3, 0] - 2 * pred_y[:, -2, 0]) / dx
-                dwdxL = torch.repeat_interleave(dwL, s, dim=0).reshape((batchsize, s))
-                x = data_x[:, :, -1]
-                p2 = x - (2 / L) * x ** 2 + (1 / L ** 2) * x ** 3
-                p4 = (- 1 / L) * x ** 2 + (1 / L ** 2) * x ** 3
-                G1 = p2 * dwdx0 + p4 * dwdxL
-                pred_y0 = pred_y[:, :, 0] - G1
-
-                pred_y1 = pred_y[:, :, 1]
-
-                pred_y_bsf = torch.stack((pred_y0, pred_y1), 2)
-
-            if config['data']['BC'] == 'HH' and data_config['out_dim'] == 2:
-                pred_y_bsf = pred_y
-
-            # data_loss = myloss(pred_y_bsf, data_y)
-            data_loss = myloss(pred_y_bsf[:, :, 0], data_y[:, :, 0])
-            # data_loss = myloss(pred_y_bsf[:, :, 1], data_y[:, :, 1])
+            data_loss = myloss(pred_y_bsf, data_y)
+            data_loss_w = myloss(pred_y_bsf[:, :, 0], data_y[:, :, 0])
+            data_loss_m = myloss(pred_y_bsf[:, :, 1], data_y[:, :, 1])
             test_err.append(data_loss.item())
+            test_err_w.append(data_loss_w.item())
+            test_err_m.append(data_loss_m.item())
             test_x[i] = data_x.cpu().numpy()
             test_y[i] = data_y.cpu().numpy()
             preds_y[i] = pred_y_bsf.cpu().numpy()
 
     mean_err = np.mean(test_err)
     std_err = np.std(test_err, ddof=1) / np.sqrt(len(test_err))
-    print(f'==Averaged relative L2 error mean: {mean_err}, std error: {std_err}==')
-
-    plot_pred(data_config, test_x, test_y, preds_y)
+    mean_err_w = np.mean(test_err_w)
+    std_err_w = np.std(test_err_w, ddof=1) / np.sqrt(len(test_err))
+    mean_err_m = np.mean(test_err_m)
+    std_err_m = np.std(test_err_m, ddof=1) / np.sqrt(len(test_err))
+    print(f'==Averaged relative L2 error mean(w & M): {mean_err}, std error: {std_err}==')
+    print(f'==Averaged relative L2 error mean(w): {mean_err_w}, std error: {std_err_w}==')
+    print(f'==Averaged relative L2 error mean(M): {mean_err_m}, std error: {std_err_m}==')
+    err_idx = np.argsort(test_err)
+    plot_pred(data_config, test_x, test_y, preds_y, err_idx)
 
 if __name__ == '__main__':
 

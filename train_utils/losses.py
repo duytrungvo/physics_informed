@@ -2,6 +2,7 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 # from torchmetrics.functional.regression import r2_score
+from train_utils.utils import shape_function, boundary_function
 
 def pino_loss_1d(func):
     def inner(*args, **kwargs):
@@ -533,8 +534,32 @@ def FDM_ReducedOrder2_Euler_Bernoulli_Beam(config_data, a, u):
 
     return Du1, Du2, boundary_l, boundary_r
 
+
 @pino_loss_reduced_order_1d
-def FDM_ReducedOrder2_Euler_Bernoulli_Beam_BSF(config_data, a, u):
+def FDM_ReducedOrder2_Euler_Bernoulli_Beam_BSF(config_data, a, u, bc):
+    batchsize = u.size(0)
+    nx = u.size(1)
+    dx = 1 / (nx - 1)
+    E = config_data['E']
+    BC = config_data['BC']
+    out_dim = config_data['out_dim']
+    u = u.reshape(batchsize, nx, out_dim)
+
+    mxx = (u[:, :-2, 1] - 2 * u[:, 1:-1, 1] + u[:, 2:, 1]) / dx ** 2
+    uxx = (u[:, :-2, 0] - 2 * u[:, 1:-1, 0] + u[:, 2:, 0]) / dx ** 2
+    I = a[:, 1:-1, 0]
+    q = a[:, 1:-1, 1]
+    m = u[:, 1:-1, 1]
+
+    G1, G2, d2G1dx2, d2G2dx2, boundary_l, boundary_r \
+        = boundary_function(u[:, :, 0], u[:, :, 1], bc, nx, dx, BC)
+
+    Du1 = mxx - d2G2dx2[:, 1:-1] + q
+    Du2 = E * I * (uxx - d2G1dx2[:, 1:-1]) + m - G2[:, 1:-1]
+
+    return Du1, Du2, boundary_l, boundary_r
+@pino_loss_reduced_order_1d
+def FDM_ReducedOrder2_Euler_Bernoulli_Beam_BSF0(config_data, a, u):
     batchsize = u.size(0)
     nx = u.size(1)
     dx = 1 / (nx - 1)
@@ -550,40 +575,66 @@ def FDM_ReducedOrder2_Euler_Bernoulli_Beam_BSF(config_data, a, u):
     x = a[:, 1:-1, -1]
     m = u[:, 1:-1, 1]
 
+    w0 = torch.repeat_interleave(u[:, 0, 0], nx - 2, dim=0).reshape((batchsize, nx - 2))
+    wL = torch.repeat_interleave(u[:, -1, 0], nx - 2, dim=0).reshape((batchsize, nx - 2))
+
+    m0 = torch.repeat_interleave(u[:, 0, 1], nx - 2, dim=0).reshape((batchsize, nx - 2))
+    mL = torch.repeat_interleave(u[:, -1, 1], nx - 2, dim=0).reshape((batchsize, nx - 2))
+
+    dw0 = (-1.5 * u[:, 0, 0] + 2 * u[:, 1, 0] - 0.5 * u[:, 2, 0]) / dx
+    dwdx0 = torch.repeat_interleave(dw0, nx - 2, dim=0).reshape((batchsize, nx - 2))
+
+    dwL = (0.5 * u[:, -3, 0] - 2 * u[:, -2, 0] + 1.5 * u[:, -1, 0]) / dx
+    dwdxL = torch.repeat_interleave(dwL, nx - 2, dim=0).reshape((batchsize, nx - 2))
+
+    dmL = (0.5 * u[:, -3, 1] - 2 * u[:, -2, 1] + 1.5 * u[:, -1, 1]) / dx
+    dmdxL = torch.repeat_interleave(dmL, nx - 2, dim=0).reshape((batchsize, nx - 2))
+
     if config_data['BC'] == 'HH':
         Du1 = mxx + q
-        Du2 = E * I * uxx + m
+        p3 = 1 - x / L
+        p4 = x / L
+        G2 = p3 * m0 + p4 * mL
+        Du2 = E * I * uxx + m - G2
+
+        boundary_l = torch.stack((w0, m0), 1)
+        boundary_r = torch.stack((wL, mL), 1)
 
     if config_data['BC'] == 'CF':
         Du1 = mxx + q
-        dmL = (0.5 * u[:, -3, 1] - 2 * u[:, -2, 1]) / dx
-        dmdxL = torch.repeat_interleave(dmL, nx - 2, dim=0).reshape((batchsize, nx - 2))
+        p3 = 1
         p4 = x - L
-        Du2 = E * I * uxx + m - p4 * dmdxL
+        G2 = p3 * mL + p4 * dmdxL
+        Du2 = E * I * uxx + m - G2
+
+        boundary_l = torch.stack((w0, dwdx0), 1)
+        boundary_r = torch.stack((mL, dmdxL), 1)
 
     if config_data['BC'] == 'CH':
         Du1 = mxx + q
-        dw0 = (2 * u[:, 1, 0] - 0.5 * u[:, 2, 0]) / dx
-        dwdx0 = torch.repeat_interleave(dw0, nx - 2, dim=0).reshape((batchsize, nx - 2))
-        mL = torch.repeat_interleave(u[:, -1, 1], nx - 2, dim=0).reshape((batchsize, nx - 2))
+        d2p1dx2 = - 2 / L**2
         d2p2dx2 = - 2 / L
+        d2p3dx2 = 2 / L**2
+        d2G1dx2 = d2p1dx2 * w0 + d2p2dx2 * dwdx0 + d2p3dx2 * wL
         p4 = 1
-        Du2 = E * I * (uxx - d2p2dx2 * dwdx0) + m - p4 * mL
+        G2 = p4 * mL
+        Du2 = E * I * (uxx - d2G1dx2) + m - G2
         # Du2 = E * I * uxx + m - E * I * d2p2dx2 * dwdx0 - p4 * mL
+
+        boundary_l = torch.stack((w0, dwdx0), 1)
+        boundary_r = torch.stack((wL, mL), 1)
 
     if config_data['BC'] == 'CC':
         Du1 = mxx + q
-        dw0 = (2 * u[:, 1, 0] - 0.5 * u[:, 2, 0]) / dx
-        dwdx0 = torch.repeat_interleave(dw0, nx - 2, dim=0).reshape((batchsize, nx - 2))
-        dwL = (0.5 * u[:, -3, 0] - 2 * u[:, -2, 0]) / dx
-        dwdxL = torch.repeat_interleave(dwL, nx - 2, dim=0).reshape((batchsize, nx - 2))
+        d2p1dx2 = - 6 / L**2 + 12 / L**3 * x
         d2p2dx2 = - 4 / L + 6 / L**2 * x
+        d2p3dx2 = 6 / L**2 - 12 / L**3 * x
         d2p4dx2 = - 2 / L + 6 / L**2 * x
-        Du2 = E * I * (uxx - d2p2dx2 * dwdx0 - d2p4dx2 * dwdxL) + m
-        # Du2 = E * I * uxx + m - E * I * (d2p2dx2 * dwdx0 + d2p4dx2 * dwdxL)
+        d2G1dx2 = d2p1dx2 * w0 + d2p2dx2 * dwdx0 + d2p3dx2 * wL + d2p4dx2 * dwdxL
+        Du2 = E * I * (uxx - d2G1dx2) + m
 
-    boundary_l = u[:, 0, :]  # w(0) = M(0) = 0
-    boundary_r = u[:, -1, :]  # w(L) = M(L) = 0
+        boundary_l = torch.stack((w0, dwdx0), 1)
+        boundary_r = torch.stack((wL, dwdxL), 1)
 
     return Du1, Du2, boundary_l, boundary_r
 
@@ -603,14 +654,11 @@ def FDM_BSF_Euler_Bernoulli_Beam(config_data, a, u):
 
     dIdx = (- 0.5 * a[:, 1:-3, 0] + 0.5 * a[:, 3:-1, 0]) / dx
 
-    dw0 = (2 * u[:, 1, 0] - 0.5 * u[:, 2, 0]) / dx
-    dwdx0 = torch.repeat_interleave(dw0, nx - 4, dim=0).reshape((batchsize, nx - 4))
-    dwL = (0.5 * u[:, -3, 0] - 2 * u[:, -2, 0]) / dx
-    dwdxL = torch.repeat_interleave(dwL, nx - 4, dim=0).reshape((batchsize, nx - 4))
+    I = a[:, 2:-2, 0]
+    q = a[:, 2:-2, 1]
 
     if config_data['BC'] == 'CC':
-        Du = a[:, 2:-2, 0] * d4wdx4 + 2 * dIdx * d3wdx3 - 1 / E * a[:, 2:-2, 1] \
-             - 12 / L**2 * dIdx * dwdx0 - 12 / L**2 * dIdx * dwdxL
+        Du = I * d4wdx4 + 2 * dIdx * d3wdx3 - (1 / E) * q
 
     boundary_l = u[:, 0, 0]
     boundary_r = u[:, -1, 0]
