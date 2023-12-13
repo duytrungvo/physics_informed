@@ -38,7 +38,7 @@ def plot_pred(data_config, test_x, test_y, preds_y, error_index):
             plt.ylabel('$q/q_0$')
             plt.title(f'Input $q(x)$')
             plt.xlim([0, 1])
-            plt.ylim([0, 1])
+            plt.ylim([-0.1, 1.1])
 
             plt.subplot(3, 1, 3)
             plt.plot(x_plot[:, -1], y_pred_plot[:, 0], 'r', label='predict sol')
@@ -57,7 +57,7 @@ def plot_pred(data_config, test_x, test_y, preds_y, error_index):
            plt.ylabel('$I/I_0$')
            plt.title(f'Input $I(x)$')
            plt.xlim([0, 1])
-           plt.ylim([0, 1])
+           # plt.ylim([0, 2])
 
            plt.subplot(4, 1, 2)
            plt.plot(x_plot[:, -1], x_plot[:, 1] / data_config['q0'])
@@ -65,7 +65,7 @@ def plot_pred(data_config, test_x, test_y, preds_y, error_index):
            plt.ylabel('$q/q_0$')
            plt.title(f'Input $q(x)$')
            plt.xlim([0, 1])
-           plt.ylim([0, 1])
+           plt.ylim([-0.1, 1.1])
 
            plt.subplot(4, 1, 3)
            plt.plot(x_plot[:, -1], y_pred_plot[:, 0], 'r', label='predict sol')

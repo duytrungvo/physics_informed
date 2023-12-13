@@ -45,24 +45,26 @@ def run(config):
             #     [lambda x, y: x * (L - x) * y]
             # )
             model.apply_output_transform(
-                [lambda x, y: ((1 / L**2) * x ** 2 - (2 / L ** 3) * x ** 3 + (1 / L ** 4) * x ** 4) * y]
+                [lambda x, y: (x ** 2 / L ** 2 - 2 * x ** 3 / L ** 3 + x ** 4 / L ** 4) * y]
             )
         if model_config['apply_output_transform'] == 'yes' and data_config['out_dim'] == 2:
             if data_config['BC'] == 'CH':
                 model.apply_output_transform(
                     # [lambda x, y: x * (L - x) * y,
                     #  lambda x, y: (L - x) * y]
-                    [lambda x, y: (- (1 / L) * x ** 2 + (1 / L ** 2) * x ** 3) * y,
-                    lambda x, y: (1 - x / L) * y]
+                    [lambda x, y: (- x ** 2 / L + x ** 3 / L ** 2) * y,
+                     lambda x, y: (1 - x / L) * y]
                 )
             elif data_config['BC'] == 'CC':
                 model.apply_output_transform(
-                    # [lambda x, y: x * (L - x) * y,
-                    #  lambda x, y: y]
-                    # [lambda x, y: (- (1 / L) * x ** 2 + (1 / L ** 2) * x ** 3) * y,
-                    #  lambda x, y: y]
-                    [lambda x, y: ((1 / L**2) * x ** 2 - (2 / L ** 3) * x ** 3 + (1 / L ** 4) * x ** 4) * y,
+                    [lambda x, y: x * (L - x) * y,
                      lambda x, y: y]
+                    # [lambda x, y: (- x ** 2 / L + x ** 3 / L ** 2) * y,
+                    #  lambda x, y: y]
+                    # [lambda x, y: (x ** 2 / L ** 2 - 2 * x ** 3 / L ** 3 + x ** 4 / L ** 4) * y,
+                    #  lambda x, y: y]
+                    # [lambda x, y: (torch.cos(2 * torch.pi * x / L) - 1) * y,
+                    #  lambda x, y: y]
                 )
             else:
                 model.apply_output_transform(
@@ -168,22 +170,35 @@ def test(config):
     preds_y = np.zeros((data_config['n_sample'], s, data_config['out_dim']))
     test_y = np.zeros((data_config['n_sample'], s, data_config['out_dim']))
     test_err = []
+    test_err_w = []
+    test_err_m = []
     with torch.no_grad():
         for i, data in enumerate(data_loader):
             data_x, data_y = data
             data_x, data_y = data_x.to(device), data_y.to(device)
             pred_y = model(data_x).reshape(data_y.shape)
             data_loss = myloss(pred_y, data_y)
+            data_loss_w = myloss(pred_y[:, :, 0], data_y[:, :, 0])
+            data_loss_m = myloss(pred_y[:, :, 1], data_y[:, :, 1])
             test_err.append(data_loss.item())
+            test_err_w.append(data_loss_w.item())
+            test_err_m.append(data_loss_m.item())
             test_x[i] = data_x.cpu().numpy()
             test_y[i] = data_y.cpu().numpy()
             preds_y[i] = pred_y.cpu().numpy()
 
     mean_err = np.mean(test_err)
     std_err = np.std(test_err, ddof=1) / np.sqrt(len(test_err))
-    print(f'==Averaged relative L2 error mean: {mean_err}, std error: {std_err}==')
+    mean_err_w = np.mean(test_err_w)
+    std_err_w = np.std(test_err_w, ddof=1) / np.sqrt(len(test_err))
+    mean_err_m = np.mean(test_err_m)
+    std_err_m = np.std(test_err_m, ddof=1) / np.sqrt(len(test_err))
+    print(f'==Averaged relative L2 error mean(w & M): {mean_err}, std error: {std_err}==')
+    print(f'==Averaged relative L2 error mean(w): {mean_err_w}, std error: {std_err_w}==')
+    print(f'==Averaged relative L2 error mean(M): {mean_err_m}, std error: {std_err_m}==')
 
-    plot_pred(data_config, test_x, test_y, preds_y)
+    err_idx = np.argsort(test_err)
+    plot_pred(data_config, test_x, test_y, preds_y, err_idx)
 
 def test_bsf(config):
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
@@ -215,17 +230,19 @@ def test_bsf(config):
                 model.apply_output_transform(
                     # [lambda x, y: x * (L - x) * y,
                     #  lambda x, y: (L - x) * y]
-                    [lambda x, y: (- (1 / L) * x ** 2 + (1 / L ** 2) * x ** 3) * y,
-                    lambda x, y: (1 - x / L) * y]
+                    [lambda x, y: (- x ** 2 / L + x ** 3 / L ** 2) * y,
+                     lambda x, y: (1 - x / L) * y]
                 )
             elif data_config['BC'] == 'CC':
                 model.apply_output_transform(
-                    # [lambda x, y: x * (L - x) * y,
-                    #  lambda x, y: y]
-                    # [lambda x, y: (- (1 / L) * x ** 2 + (1 / L ** 2) * x ** 3) * y,
-                    #  lambda x, y: y]
-                    [lambda x, y: ((1 / L**2) * x ** 2 - (2 / L ** 3) * x ** 3 + (1 / L ** 4) * x ** 4) * y,
+                    [lambda x, y: x * (L - x) * y,
                      lambda x, y: y]
+                    # [lambda x, y: (- x ** 2 / L + x ** 3 / L ** 2) * y,
+                    #  lambda x, y: y]
+                    # [lambda x, y: ((1 / L**2) * x ** 2 - (2 / L ** 3) * x ** 3 + (1 / L ** 4) * x ** 4) * y,
+                    #  lambda x, y: y]
+                    # [lambda x, y: (torch.cos(2 * torch.pi * x / L) - 1) * y,
+                    #  lambda x, y: y]
                 )
             else:
                 model.apply_output_transform(
@@ -244,13 +261,18 @@ def test_bsf(config):
         model.load_state_dict(ckpt['model'])
         print('Weights loaded from %s' % ckpt_path)
 
+    if config['test']['pino_loss'] == 'reduced_o2_bsf':
+        pino_loss = FDM_ReducedOrder2_Euler_Bernoulli_Beam_BSF
 
     myloss = LpLoss(size_average=True)
     model.eval()
+    nsample = data_config['n_sample']
+    in_dim = data_config['in_dim']
+    out_dim = data_config['out_dim']
     s = int(np.ceil(data_config['nx'] / data_config['sub']))
-    test_x = np.zeros((data_config['n_sample'], s, data_config['in_dim']))
-    preds_y = np.zeros((data_config['n_sample'], s, data_config['out_dim']))
-    test_y = np.zeros((data_config['n_sample'], s, data_config['out_dim']))
+    test_x = np.zeros((nsample, s, in_dim))
+    preds_y = np.zeros((nsample, s, out_dim))
+    test_y = np.zeros((nsample, s, out_dim))
     test_err = []
     test_err_w = []
     test_err_m = []
@@ -271,6 +293,7 @@ def test_bsf(config):
             pred_y_bsf = torch.stack((pred_y0, pred_y1), 2)
 
             data_loss = myloss(pred_y_bsf, data_y)
+            # data_loss, _, _ = pino_loss(config['data'], data_x, pred_y_bsf, bc)
             data_loss_w = myloss(pred_y_bsf[:, :, 0], data_y[:, :, 0])
             data_loss_m = myloss(pred_y_bsf[:, :, 1], data_y[:, :, 1])
             test_err.append(data_loss.item())
@@ -286,10 +309,14 @@ def test_bsf(config):
     std_err_w = np.std(test_err_w, ddof=1) / np.sqrt(len(test_err))
     mean_err_m = np.mean(test_err_m)
     std_err_m = np.std(test_err_m, ddof=1) / np.sqrt(len(test_err))
+
+    print(f'==Test for {nsample} samples==')
     print(f'==Averaged relative L2 error mean(w & M): {mean_err}, std error: {std_err}==')
     print(f'==Averaged relative L2 error mean(w): {mean_err_w}, std error: {std_err_w}==')
     print(f'==Averaged relative L2 error mean(M): {mean_err_m}, std error: {std_err_m}==')
     err_idx = np.argsort(test_err)
+    # err_idx = np.arange(0, nsample)
+    # np.random.shuffle(err_idx)
     plot_pred(data_config, test_x, test_y, preds_y, err_idx)
 
 if __name__ == '__main__':
