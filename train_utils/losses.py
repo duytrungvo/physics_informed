@@ -555,7 +555,8 @@ def FDM_ReducedOrder2_Euler_Bernoulli_Beam_BSF(config_data, a, u, bc):
         = boundary_function(u[:, :, 0], u[:, :, 1], bc, nx, dx, BC)
 
     Du1 = mxx - d2G2dx2[:, 1:-1] + q
-    Du2 = E * I * (uxx - d2G1dx2[:, 1:-1]) + m - G2[:, 1:-1]
+    # Du2 = E * I * (uxx - d2G1dx2[:, 1:-1]) + m - G2[:, 1:-1]
+    Du2 = (uxx - d2G1dx2[:, 1:-1]) + (m - G2[:, 1:-1]) / (E * I)
 
     return Du1, Du2, boundary_l, boundary_r
 @pino_loss_reduced_order_1d

@@ -207,6 +207,30 @@ def save_loss(path, name, loss):
     np.savetxt(ckpt_dir + name, loss)
     print('Training lost is saved at %s' % ckpt_dir + name)
 
+def test_func_disp(BC):
+    if BC == 'CC':
+        return lambda x, l: x * (l - x)
+        # return lambda x, l: - x ** 2 / l + x ** 3 / l ** 2
+        # return lambda x, l: x ** 2 / l ** 2 - 2 * x ** 3 / l ** 3 + x ** 4 / l ** 4
+        # return lambda x, l: torch.cos(2 * torch.pi * x / l) - 1
+    if BC == 'CH':
+        # return lambda x, l: x * (l - x)
+        return lambda x, l: - x ** 2 / l + x ** 3 / l ** 2
+    if BC == 'CF':
+        return lambda x, l: x * (l - x)
+    if BC == 'HH':
+        return lambda x, l: x * (l - x)
+def test_func_moment(BC):
+    if BC == 'CC':
+        return lambda x, l: 1
+    if BC == 'CH':
+        return lambda x, l: 1 - x / l
+        # return lambda x, l: l - x
+    if BC == 'CF':
+        return lambda x, l: x * (l - x)
+    if BC == 'HH':
+        return lambda x, l: x * (l - x)
+
 def shape_function(BC, x, L):
     bc = torch.zeros((x.size(0), x.size(1), 16))
     if BC == 'CF':

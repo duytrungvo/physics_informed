@@ -9,7 +9,7 @@ from train_utils.losses import LpLoss, zeros_loss, \
     FDM_ReducedOrder1_Euler_Bernoulli_Beam, FDM_ReducedOrder2_Euler_Bernoulli_Beam, \
     FDM_ReducedOrder2_Euler_Bernoulli_Beam_BSF, FDM_BSF_Euler_Bernoulli_Beam
 from train_utils.plot_test import plot_pred
-from train_utils.utils import shape_function, boundary_function
+from train_utils.utils import shape_function, boundary_function, test_func_disp, test_func_moment
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -41,36 +41,17 @@ def run(config):
                       out_dim=data_config['out_dim'],
                       act=model_config['act']).to(device)
         if model_config['apply_output_transform'] == 'yes' and data_config['out_dim'] == 1:
-            # model.apply_output_transform(
-            #     [lambda x, y: x * (L - x) * y]
-            # )
             model.apply_output_transform(
                 [lambda x, y: (x ** 2 / L ** 2 - 2 * x ** 3 / L ** 3 + x ** 4 / L ** 4) * y]
             )
         if model_config['apply_output_transform'] == 'yes' and data_config['out_dim'] == 2:
-            if data_config['BC'] == 'CH':
-                model.apply_output_transform(
-                    # [lambda x, y: x * (L - x) * y,
-                    #  lambda x, y: (L - x) * y]
-                    [lambda x, y: (- x ** 2 / L + x ** 3 / L ** 2) * y,
-                     lambda x, y: (1 - x / L) * y]
-                )
-            elif data_config['BC'] == 'CC':
-                model.apply_output_transform(
-                    [lambda x, y: x * (L - x) * y,
-                     lambda x, y: y]
-                    # [lambda x, y: (- x ** 2 / L + x ** 3 / L ** 2) * y,
-                    #  lambda x, y: y]
-                    # [lambda x, y: (x ** 2 / L ** 2 - 2 * x ** 3 / L ** 3 + x ** 4 / L ** 4) * y,
-                    #  lambda x, y: y]
-                    # [lambda x, y: (torch.cos(2 * torch.pi * x / L) - 1) * y,
-                    #  lambda x, y: y]
-                )
-            else:
-                model.apply_output_transform(
-                    [lambda x, y: x * (L - x) * y,
-                     lambda x, y: x * (L - x) * y]
-                )
+            psi = test_func_disp(data_config['BC'])
+            varphi = test_func_moment(data_config['BC'])
+
+            model.apply_output_transform(
+                [lambda x, y: psi(x, L) * y,
+                 lambda x, y: varphi(x, L) * y]
+            )
 
     if model_config['name'] == 'fcn':
         model = FCNet(
@@ -78,11 +59,6 @@ def run(config):
             device)
     if model_config['name'] == 'nn':
         model = NNet(layers=np.concatenate(([dataset.s], model_config['layers'][1:], [dataset.s]))).to(device)
-        # if model_config['apply_output_transform'] == 'yes':
-        #     model.apply_output_transform(
-        #         lambda x, y: x * y + 0.0
-        #     )
-
 
     # train
     train_config = config['train']
@@ -226,29 +202,14 @@ def test_bsf(config):
                 [lambda x, y: x * (L - x) * y]
             )
         if model_config['apply_output_transform'] == 'yes' and data_config['out_dim'] == 2:
-            if data_config['BC'] == 'CH':
-                model.apply_output_transform(
-                    # [lambda x, y: x * (L - x) * y,
-                    #  lambda x, y: (L - x) * y]
-                    [lambda x, y: (- x ** 2 / L + x ** 3 / L ** 2) * y,
-                     lambda x, y: (1 - x / L) * y]
-                )
-            elif data_config['BC'] == 'CC':
-                model.apply_output_transform(
-                    [lambda x, y: x * (L - x) * y,
-                     lambda x, y: y]
-                    # [lambda x, y: (- x ** 2 / L + x ** 3 / L ** 2) * y,
-                    #  lambda x, y: y]
-                    # [lambda x, y: ((1 / L**2) * x ** 2 - (2 / L ** 3) * x ** 3 + (1 / L ** 4) * x ** 4) * y,
-                    #  lambda x, y: y]
-                    # [lambda x, y: (torch.cos(2 * torch.pi * x / L) - 1) * y,
-                    #  lambda x, y: y]
-                )
-            else:
-                model.apply_output_transform(
-                    [lambda x, y: x * (L - x) * y,
-                     lambda x, y: x * (L - x) * y]
-                )
+            psi = test_func_disp(data_config['BC'])
+            varphi = test_func_moment(data_config['BC'])
+
+            model.apply_output_transform(
+                [lambda x, y: psi(x, L) * y,
+                 lambda x, y: varphi(x, L) * y]
+            )
+
     if model_config['name'] == 'fcn':
         model = FCNet(
             layers=np.concatenate(([data_config['in_dim']], model_config['layers'][1:], [data_config['out_dim']]))).to(
