@@ -209,10 +209,10 @@ def save_loss(path, name, loss):
 
 def test_func_disp(BC):
     if BC == 'CC':
-        return lambda x, l: x * (l - x)
-        # return lambda x, l: - x ** 2 / l + x ** 3 / l ** 2
-        # return lambda x, l: x ** 2 / l ** 2 - 2 * x ** 3 / l ** 3 + x ** 4 / l ** 4
-        # return lambda x, l: torch.cos(2 * torch.pi * x / l) - 1
+        return lambda x, l: x * (l - x)                                                 #psi1
+        # return lambda x, l: - x ** 2 / l + x ** 3 / l ** 2                            #psi2
+        # return lambda x, l: x ** 2 / l ** 2 - 2 * x ** 3 / l ** 3 + x ** 4 / l ** 4   #psi3
+        # return lambda x, l: torch.cos(2 * torch.pi * x / l) - 1                       #psi4
     if BC == 'CH':
         # return lambda x, l: x * (l - x)
         return lambda x, l: - x ** 2 / l + x ** 3 / l ** 2
