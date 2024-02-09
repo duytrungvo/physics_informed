@@ -1,15 +1,15 @@
 data:
   name: 'Euler-Bernoulli Beam'
   BC: 'CC'
-  datapath: '/home/vdtrung/machine_learning/GItHub/data/physics_informed/eb_beam/const/eb_beam_sin_load_CC_1025_rng0.mat'
+  datapath: '/home/vdtrung/machine_learning/GItHub/data/physics_informed/eb_beam/const/eb_beam_const_CC_1025_rng0.mat'
   total_num: 40000
-  offset: 16000
-  n_sample: 4000
+  offset: 4000
+  n_sample: 1000
   nx: 1025
   sub: 8
   in_dim: 3
   out_dim: 2
-  q0: -1.0
+  q0: 1.0
   E: 1.0
   I0: 1.0
   L: 1.0
@@ -20,9 +20,9 @@ model:
   modes: [10, 10, 10, 10]
   fc_dim: 128
   act: gelu
-  apply_output_transform: 'yes'
+  apply_output_transform: 'no'
 
 test:
   batchsize: 1
-  pino_loss: 'reduced_o2_bsf'
+  pino_loss: 'reduced_order2_bsf'
   ckpt: 'checkpoints/eb-beam/eb-beam-pretrain-eqn.pt'

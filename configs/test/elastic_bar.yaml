@@ -1,6 +1,6 @@
 data:
   name: 'Elastic-Bar'
-  datapath: '/home/vdtrung/machine_learning/GItHub/data/physics_informed/elastic_bar_nonlinear_exponential_1025.mat'
+  datapath: '/home/vdtrung/machine_learning/GItHub/data/physics_informed/elastic_bar_nonlinear_spline_1025.mat'
   total_num: 5000
   offset: 1000
   n_sample: 200
@@ -19,7 +19,7 @@ model:
   modes: [10, 10, 10, 10]
   fc_dim: 128
   act: gelu
-  apply_output_transform: 'no'
+  apply_output_transform: 'yes'
 
 test:
   batchsize: 1

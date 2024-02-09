@@ -6,8 +6,8 @@ from train_utils import Adam
 from train_utils.datasets import Loader_1D
 from train_utils.train_1d import train_1d
 from train_utils.losses import LpLoss, zeros_loss, \
-    FDM_ReducedOrder1_Euler_Bernoulli_Beam, FDM_ReducedOrder2_Euler_Bernoulli_Beam, \
-    FDM_ReducedOrder2_Euler_Bernoulli_Beam_BSF, FDM_BSF_Euler_Bernoulli_Beam
+    FDM_ReducedOrder2_Euler_Bernoulli_Beam, \
+    FDM_ReducedOrder2_Euler_Bernoulli_Beam_BSF
 from train_utils.plot_test import plot_pred
 from train_utils.utils import shape_function, boundary_function, test_func_disp, test_func_moment
 import numpy as np
@@ -69,14 +69,10 @@ def run(config):
                                                      gamma=train_config['scheduler_gamma'])
     if train_config['pino_loss'] == 'zero':
         pino_loss = zeros_loss
-    if train_config['pino_loss'] == 'reduced_order1':
-        pino_loss = FDM_ReducedOrder1_Euler_Bernoulli_Beam
     if train_config['pino_loss'] == 'reduced_order2':
         pino_loss = FDM_ReducedOrder2_Euler_Bernoulli_Beam
-    if train_config['pino_loss'] == 'reduced_o2_bsf':
+    if train_config['pino_loss'] == 'reduced_order2_bsf':
         pino_loss = FDM_ReducedOrder2_Euler_Bernoulli_Beam_BSF
-    if train_config['pino_loss'] == 'bsf':
-        pino_loss = FDM_BSF_Euler_Bernoulli_Beam
     train_1d(model,
              train_loader,
              optimizer,
@@ -89,7 +85,7 @@ def run(config):
     path = config['train']['save_dir']
     ckpt_dir = 'checkpoints/%s/' % path
     loss_history = np.loadtxt(ckpt_dir+'train_loss_history.txt')
-    plt.semilogy(range(len(loss_history)), loss_history)
+    plt.semilogy(range(len(loss_history)), loss_history[:, :5])
     plt.xlabel('Epochs')
     plt.ylabel('$Loss$')
     plt.tight_layout()
@@ -222,7 +218,7 @@ def test_bsf(config):
         model.load_state_dict(ckpt['model'])
         print('Weights loaded from %s' % ckpt_path)
 
-    if config['test']['pino_loss'] == 'reduced_o2_bsf':
+    if config['test']['pino_loss'] == 'reduced_order2_bsf':
         pino_loss = FDM_ReducedOrder2_Euler_Bernoulli_Beam_BSF
 
     myloss = LpLoss(size_average=True)

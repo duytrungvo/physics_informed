@@ -5,7 +5,7 @@ from models import FNO1d, FCNet, NNet
 from train_utils import Adam
 from train_utils.datasets import Loader_1D
 from train_utils.train_1d import train_1d
-from train_utils.losses import LpLoss, FDM_ElasticBar, FDM_ElasticBar_Order2, zeros_loss, FDM_ReducedOrder_ElasticBar
+from train_utils.losses import LpLoss, FDM_ElasticBar_Order2, zeros_loss, FDM_ReducedOrder_ElasticBar
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -32,6 +32,7 @@ def run(config):
         model = FNO1d(modes=model_config['modes'],
                       fc_dim=model_config['fc_dim'],
                       layers=model_config['layers'],
+                      in_dim=data_config['in_dim'],
                       out_dim=data_config['out_dim'],
                       act=model_config['act']).to(device)
         if model_config['apply_output_transform'] == 'yes' and data_config['out_dim'] == 1:
@@ -64,8 +65,6 @@ def run(config):
                                                      gamma=train_config['scheduler_gamma'])
     if train_config['pino_loss'] == 'zero':
         pino_loss = zeros_loss
-    if train_config['pino_loss'] == '1st_order':
-        pino_loss = FDM_ElasticBar
     if train_config['pino_loss'] == '2nd_order':
         pino_loss = FDM_ElasticBar_Order2
     if train_config['pino_loss'] == 'reduced_order':
@@ -108,6 +107,7 @@ def test(config):
         model = FNO1d(modes=model_config['modes'],
                       fc_dim=model_config['fc_dim'],
                       layers=model_config['layers'],
+                      in_dim=data_config['in_dim'],
                       out_dim=data_config['out_dim'],
                       act=model_config['act']).to(device)
         if model_config['apply_output_transform'] == 'yes' and data_config['out_dim'] == 1:
