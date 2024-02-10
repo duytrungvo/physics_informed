@@ -46,7 +46,7 @@ def train_1d(model,
 
     count_update_weight = 0
     bc = torch.zeros(train_loader.batch_size, train_loader.dataset[0][0].size(0), 16)
-    if config['train']['pino_loss'] == 'reduced_o2_bsf':
+    if config['train']['pino_loss'] == 'reduced_order2_bsf':
         batchsize = train_loader.batch_size
         nx = train_loader.dataset[0][0].size(0)
         x_loss = train_loader.dataset[0][0][:, -1].repeat(batchsize).reshape(batchsize, nx)
