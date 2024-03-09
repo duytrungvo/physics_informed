@@ -214,8 +214,8 @@ def test_func_disp(BC):
         # return lambda x, l: x ** 2 / l ** 2 - 2 * x ** 3 / l ** 3 + x ** 4 / l ** 4   #psi3
         # return lambda x, l: torch.cos(2 * torch.pi * x / l) - 1                       #psi4
     if BC == 'CH':
-        # return lambda x, l: x * (l - x)
-        return lambda x, l: - x ** 2 / l + x ** 3 / l ** 2
+        return lambda x, l: x * (l - x)
+        # return lambda x, l: - x ** 2 / l + x ** 3 / l ** 2
     if BC == 'CF':
         return lambda x, l: x * (l - x)
     if BC == 'HH':
@@ -224,7 +224,7 @@ def test_func_moment(BC):
     if BC == 'CC':
         return lambda x, l: 1
     if BC == 'CH':
-        return lambda x, l: 1 - x / l
+        return lambda x, l: l - x
         # return lambda x, l: l - x
     if BC == 'CF':
         return lambda x, l: x * (l - x)
