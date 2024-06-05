@@ -1,10 +1,10 @@
 data:
   name: 'Euler-Bernoulli Beam'
-  BC: 'CC'
-  datapath: '/home/vdtrung/machine_learning/GItHub/data/physics_informed/eb_beam/parabolic/eb_beam_parabolic_sym_CC_1025_rng0.mat'
+  BC: 'HH'
+  datapath: '/home/vdtrung/machine_learning/GItHub/data/physics_informed/eb_beam/linear/eb_beam_linear_cir_hollow_HH_1025_rng0.mat'
   total_num: 40000
-  offset: 4000
-  n_sample: 1000
+  offset: 500
+  n_sample: 125
   nx: 1025
   sub: 8
   in_dim: 3

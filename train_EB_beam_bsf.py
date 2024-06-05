@@ -4,10 +4,8 @@ import torch
 from models import FNO1d, FCNet, NNet
 from train_utils import Adam
 from train_utils.datasets import Loader_1D
-from train_utils.train_1d import train_1d
-from train_utils.losses import LpLoss, zeros_loss, \
-    FDM_ReducedOrder2_Euler_Bernoulli_Beam, \
-    FDM_ReducedOrder2_Euler_Bernoulli_Beam_BSF
+from train_utils.train_1d import train_1drb
+from train_utils.losses import LpLoss, FDM_ReducedOrder2_Euler_Bernoulli_Beam_BSF
 from train_utils.plot_test import plot_pred
 from train_utils.utils import shape_function, boundary_function, test_func_disp, test_func_moment
 import numpy as np
@@ -67,13 +65,9 @@ def run(config):
     scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer,
                                                      milestones=train_config['milestones'],
                                                      gamma=train_config['scheduler_gamma'])
-    if train_config['pino_loss'] == 'zero':
-        pino_loss = zeros_loss
-    if train_config['pino_loss'] == 'reduced_order2':
-        pino_loss = FDM_ReducedOrder2_Euler_Bernoulli_Beam
-    if train_config['pino_loss'] == 'reduced_order2_bsf':
-        pino_loss = FDM_ReducedOrder2_Euler_Bernoulli_Beam_BSF
-    train_1d(model,
+
+    pino_loss = FDM_ReducedOrder2_Euler_Bernoulli_Beam_BSF
+    train_1drb(model,
              train_loader,
              optimizer,
              scheduler,
@@ -93,86 +87,6 @@ def run(config):
     plt.show()
 
 def test(config):
-    device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
-    data_config = config['data']
-    dataset = Loader_1D(data_config['datapath'],
-                        nx=data_config['nx'],
-                        sub=data_config['sub'],
-                        in_dim=data_config['in_dim'],
-                        out_dim=data_config['out_dim'])
-    data_loader = dataset.make_loader(n_sample=data_config['n_sample'],
-                                      batch_size=config['test']['batchsize'],
-                                      start=data_config['offset'])
-
-    model_config = config['model']
-    if model_config['name'] == 'fno':
-        model = FNO1d(modes=model_config['modes'],
-                      fc_dim=model_config['fc_dim'],
-                      layers=model_config['layers'],
-                      in_dim=data_config['in_dim'],
-                      out_dim=data_config['out_dim'],
-                      act=model_config['act']).to(device)
-        if model_config['apply_output_transform'] == 'yes' and data_config['out_dim'] == 1:
-            model.apply_output_transform(
-                [lambda x, y: x * (data_config['L'] - x) * y]
-            )
-        if model_config['apply_output_transform'] == 'yes' and data_config['out_dim'] == 2:
-            model.apply_output_transform(
-                [lambda x, y: x * (data_config['L'] - x) * y,
-                 lambda x, y: x * (data_config['L'] - x) * y]
-            )
-
-    if model_config['name'] == 'fcn':
-        model = FCNet(
-            layers=np.concatenate(([data_config['in_dim']], model_config['layers'][1:], [data_config['out_dim']]))).to(
-            device)
-
-    # Load from checkpoint
-    if 'ckpt' in config['test']:
-        ckpt_path = config['test']['ckpt']
-        ckpt = torch.load(ckpt_path)
-        model.load_state_dict(ckpt['model'])
-        print('Weights loaded from %s' % ckpt_path)
-
-
-    myloss = LpLoss(size_average=True)
-    model.eval()
-    s = int(np.ceil(data_config['nx']/data_config['sub']))
-    test_x = np.zeros((data_config['n_sample'], s, data_config['in_dim']))
-    preds_y = np.zeros((data_config['n_sample'], s, data_config['out_dim']))
-    test_y = np.zeros((data_config['n_sample'], s, data_config['out_dim']))
-    test_err = []
-    test_err_w = []
-    test_err_m = []
-    with torch.no_grad():
-        for i, data in enumerate(data_loader):
-            data_x, data_y = data
-            data_x, data_y = data_x.to(device), data_y.to(device)
-            pred_y = model(data_x).reshape(data_y.shape)
-            data_loss = myloss(pred_y, data_y)
-            data_loss_w = myloss(pred_y[:, :, 0], data_y[:, :, 0])
-            data_loss_m = myloss(pred_y[:, :, 1], data_y[:, :, 1])
-            test_err.append(data_loss.item())
-            test_err_w.append(data_loss_w.item())
-            test_err_m.append(data_loss_m.item())
-            test_x[i] = data_x.cpu().numpy()
-            test_y[i] = data_y.cpu().numpy()
-            preds_y[i] = pred_y.cpu().numpy()
-
-    mean_err = np.mean(test_err)
-    std_err = np.std(test_err, ddof=1) / np.sqrt(len(test_err))
-    mean_err_w = np.mean(test_err_w)
-    std_err_w = np.std(test_err_w, ddof=1) / np.sqrt(len(test_err))
-    mean_err_m = np.mean(test_err_m)
-    std_err_m = np.std(test_err_m, ddof=1) / np.sqrt(len(test_err))
-    print(f'==Averaged relative L2 error mean(w & M): {mean_err}, std error: {std_err}==')
-    print(f'==Averaged relative L2 error mean(w): {mean_err_w}, std error: {std_err_w}==')
-    print(f'==Averaged relative L2 error mean(M): {mean_err_m}, std error: {std_err_m}==')
-
-    err_idx = np.argsort(test_err)
-    plot_pred(data_config, test_x, test_y, preds_y, err_idx)
-
-def test_bsf(config):
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
     data_config = config['data']
     dataset = Loader_1D(data_config['datapath'],
@@ -218,9 +132,7 @@ def test_bsf(config):
         model.load_state_dict(ckpt['model'])
         print('Weights loaded from %s' % ckpt_path)
 
-    if config['test']['pino_loss'] == 'reduced_order2_bsf':
-        pino_loss = FDM_ReducedOrder2_Euler_Bernoulli_Beam_BSF
-
+    pino_loss = FDM_ReducedOrder2_Euler_Bernoulli_Beam_BSF
     myloss = LpLoss(size_average=True)
     model.eval()
     nsample = data_config['n_sample']
@@ -290,9 +202,7 @@ if __name__ == '__main__':
         config = yaml.load(stream, yaml.FullLoader)
     if args.mode == 'train':
         run(config)
-    elif args.mode == 'test':
-        test(config)
     else:
-        test_bsf(config)
+        test(config)
 
     print('Done')

@@ -394,8 +394,7 @@ def FDM_ElasticBar_Order4(config_data, a, u):
     return Du, boundary_l, boundary_r
 
 @pino_loss_reduced_order2_1d
-def FDM_ReducedOrder_ElasticBar(*args, **kwargs):
-    config_data, a, u = args[0], args[1], args[2]
+def FDM_ReducedOrder_ElasticBar(config_data, a, u):
     batchsize = u.size(0)
     nx = u.size(1)
     dx = 1 / (nx - 1)
@@ -412,8 +411,7 @@ def FDM_ReducedOrder_ElasticBar(*args, **kwargs):
     return Du1, Du2, boundary_l, boundary_r
 
 @pino_loss_reduced_order2_1d
-def FDM_ReducedOrder2_Euler_Bernoulli_Beam(*args, **kwargs):
-    config_data, a, u = args[0], args[1], args[2]
+def FDM_ReducedOrder2_Euler_Bernoulli_Beam(config_data, a, u):
     batchsize = u.size(0)
     nx = u.size(1)
     dx = 1 / (nx - 1)
@@ -437,8 +435,7 @@ def FDM_ReducedOrder2_Euler_Bernoulli_Beam(*args, **kwargs):
     return Du1, Du2, boundary_l, boundary_r
 
 @pino_loss_reduced_order2_1d
-def FDM_ReducedOrder2_Euler_Bernoulli_Beam_BSF(*args, **kwargs):
-    config_data, a, u, bc = args[0], args[1], args[2], args[3]
+def FDM_ReducedOrder2_Euler_Bernoulli_Beam_BSF(config_data, a, u, bc):
     batchsize = u.size(0)
     nx = u.size(1)
     dx = 1 / (nx - 1)

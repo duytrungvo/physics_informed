@@ -1,10 +1,10 @@
 data:
   name: 'Euler-Bernoulli Beam'
-  BC: 'CC'
-  datapath: '/home/vdtrung/machine_learning/GItHub/data/physics_informed/eb_beam/parabolic/eb_beam_parabolic_sym_CC_1025_rng0.mat'
+  BC: 'HH'
+  datapath: '/home/vdtrung/machine_learning/GItHub/data/physics_informed/eb_beam/linear/eb_beam_linear_cir_hollow_HH_1025_rng0.mat'
   total_num: 40000
   offset: 0
-  n_sample: 8000
+  n_sample: 500
   nx: 1025
   sub: 8
   in_dim: 3
@@ -24,7 +24,7 @@ model:
 
 train:
   batchsize: 20
-  epochs: 1000
+  epochs: 200
   milestones: [ 100, 200, 300, 400, 500, 600, 700, 800, 900, 1000,
                 1100, 1200, 1300, 1400, 1500, 1600, 1700, 1800, 1900]
   base_lr: 0.001

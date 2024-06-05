@@ -23,7 +23,7 @@ model:
 
 train:
   batchsize: 20
-  epochs: 1000
+  epochs: 200
   milestones: [ 100, 200, 300, 400, 500, 600, 700, 800, 900 ]
   base_lr: 0.001
   scheduler_gamma: 0.5
