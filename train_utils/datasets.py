@@ -1,5 +1,6 @@
 import scipy.io
 import numpy as np
+import mat73
 
 try:
     from pyDOE import lhs
@@ -9,7 +10,7 @@ except ImportError:
 
 import torch
 from torch.utils.data import Dataset
-from .utils import get_grid3d, convert_ic, torch2dgrid
+from .utils import get_grid3d, convert_ic, torch2dgrid, UnitGaussianNormalizer
 
 
 def online_loader(sampler, S, T, time_scale, batchsize=1):
@@ -509,6 +510,106 @@ class DarcyFlow(Dataset):
     def __getitem__(self, item):
         fa = self.a[item]
         return torch.cat([fa.unsqueeze(2), self.mesh], dim=2), self.u[item]
+class DarcyFlowv1(Dataset):
+    def __init__(self,
+                 datapath,
+                 nx, sub,
+                 offset=0,
+                 num=1):
+        data = MatReader(datapath)
+        s = int(nx // sub) + 1 if sub > 1 else nx
+        x = data.read_field('coeff')[offset: offset + num, ::sub, ::sub][:, :s, :s]
+        x = x.reshape(num, s, s, 1)
+        self.s = s
+        self.mesh = self.get_grid(x.shape)
+        self.x = torch.cat((x, self.mesh), dim=-1)
+        self.y = data.read_field('sol')[offset: offset + num, ::sub, ::sub][:, :s, :s]
+
+    def get_grid(self, shape):
+        batchsize, size_x, size_y = shape[0], shape[1], shape[2]
+        gridx = torch.tensor(np.linspace(0, 1, size_x), dtype=torch.float)
+        gridx = gridx.reshape(1, size_x, 1, 1).repeat([batchsize, 1, size_y, 1])
+        gridy = torch.tensor(np.linspace(0, 1, size_y), dtype=torch.float)
+        gridy = gridy.reshape(1, 1, size_y, 1).repeat([batchsize, size_x, 1, 1])
+        return torch.cat((gridx, gridy), dim=-1)
+    def __len__(self):
+        return self.x.shape[0]
+
+    def __getitem__(self, item):
+        return self.x[item], self.y[item]
+
+class DarcyFlow1(Dataset):
+    def __init__(self,
+                 datapath,
+                 nx, sub,
+                 offset=0,
+                 num=1,
+                 normalizer=True):
+        data = MatReader(datapath)
+        s = int(nx // sub) + 1 if sub > 1 else nx
+        x = data.read_field('coeff')[offset: offset + num, ::sub, ::sub][:, :s, :s]
+        self.x_normalizer = UnitGaussianNormalizer(x)
+        if normalizer:
+            x = self.x_normalizer.encode(x)
+        self.x = x.reshape(num, s, s, 1)
+        self.y = data.read_field('sol')[offset: offset + num, ::sub, ::sub][:, :s, :s]
+        self.y_normalizer = UnitGaussianNormalizer(self.y)
+    def make_loader(self, batch_size):
+        return torch.utils.data.DataLoader(torch.utils.data.TensorDataset(self.x, self.y),
+                                           batch_size=batch_size, shuffle=True)
+
+class DarcyFlow_normalized(Dataset):
+    def __init__(self,
+                 datapath,
+                 nx, sub,
+                 offset=0,
+                 num=1):
+        self.S = int(nx // sub) + 1 if sub > 1 else nx
+        data = scipy.io.loadmat(datapath)
+        a = data['coeff']
+        u = data['sol']
+        at = torch.tensor(a[offset: offset + num, ::sub, ::sub], dtype=torch.float)
+        self.mesh = torch2dgrid(self.S, self.S)
+        self.x_normalizer = UnitGaussianNormalizer(at)
+        self.a = self.x_normalizer.encode(at)
+        self.u = torch.tensor(u[offset: offset + num, ::sub, ::sub], dtype=torch.float)
+        self.y_normalizer = UnitGaussianNormalizer(self.u)
+    def __len__(self):
+        return self.a.shape[0]
+
+    def __getitem__(self, item):
+        fa = self.a[item]
+        return torch.cat([fa.unsqueeze(2), self.mesh], dim=2), self.u[item]
+
+class DarcyFlow_normalized_eval(Dataset):
+    def __init__(self,
+                 datapath1,
+                 datapath,
+                 nx, sub,
+                 offset=0,
+                 num=1):
+        self.S = int(nx // sub) + 1 if sub > 1 else nx
+        data1 = scipy.io.loadmat(datapath1)
+        data2 = scipy.io.loadmat(datapath)
+        a1 = data1['coeff']
+        a2 = data2['coeff']
+        u1 = data1['sol']
+        u2 = data2['sol']
+        at1 = torch.tensor(a1[offset: offset + num, ::sub, ::sub], dtype=torch.float)
+        at2 = torch.tensor(a2[offset: offset + num, ::sub, ::sub], dtype=torch.float)
+        ut1 = torch.tensor(u1[offset: offset + num, ::sub, ::sub], dtype=torch.float)
+        ut2 = torch.tensor(u2[offset: offset + num, ::sub, ::sub], dtype=torch.float)
+        self.mesh = torch2dgrid(self.S, self.S)
+        self.x_normalizer = UnitGaussianNormalizer(at2)
+        self.a = self.x_normalizer.encode(at2)
+        self.u = ut2
+        self.y_normalizer = UnitGaussianNormalizer(ut2)
+    def __len__(self):
+        return self.a.shape[0]
+
+    def __getitem__(self, item):
+        fa = self.a[item]
+        return torch.cat([fa.unsqueeze(2), self.mesh], dim=2), self.u[item]
 
 
 class DarcyIC(Dataset):
@@ -621,3 +722,40 @@ class KFaDataset(Dataset):
 
     def __len__(self, ):
         return self.a_data.shape[0]
+
+
+class Loader2D(Dataset):
+    def __init__(self,
+                 datapath,
+                 nx, sub,
+                 offset=0,
+                 num=1):
+        s = int(nx // sub) + 1 if sub > 1 else nx
+        data = mat73.loadmat(datapath)
+        # x = data['x'][::sub, ::sub]
+        # y = data['y'][::sub, ::sub]
+        a = data['input'][offset: offset + num, ::sub, ::sub]
+        u = data['output'][offset: offset + num, ::sub, ::sub]
+        q = torch.tensor(data['param'][offset: offset + num], dtype=torch.float)
+        # a = torch.tensor(a, dtype=torch.float)
+        self.u = torch.tensor(u, dtype=torch.float)
+        self.param = q.unsqueeze(1)
+        # self.mesh = torch2dgrid(self.S, self.S)
+        # xx = torch.tensor(x, dtype=torch.float)
+        # yy = torch.tensor(y, dtype=torch.float)
+        self.mesh = self.get_grid(a.shape)
+        self.a = torch.cat((torch.tensor(a, dtype=torch.float), self.mesh), dim=-1)
+
+    def get_grid(self, shape):
+        batchsize, size_x, size_y = shape[0], shape[1], shape[2]
+        gridx = torch.tensor(np.linspace(0, 1, size_x), dtype=torch.float)
+        gridx = gridx.reshape(1, size_x, 1, 1).repeat([batchsize, 1, size_y, 1])
+        gridy = torch.tensor(np.linspace(0, 1, size_y), dtype=torch.float)
+        gridy = gridy.reshape(1, 1, size_y, 1).repeat([batchsize, size_x, 1, 1])
+        return torch.cat((gridx, gridy), dim=-1)
+
+    def __len__(self):
+        return self.a.shape[0]
+
+    def __getitem__(self, item):
+        return self.a[item], self.u[item], self.param[item]

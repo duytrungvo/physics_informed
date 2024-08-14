@@ -1,30 +1,32 @@
 data:
   name: 'Darcy'
-  datapath: '/mnt/md1/zongyi/piececonst_r421_N1024_smooth1.mat'
+  datapath: '/home/vdtrung/trungvd/data/physics_informed/darcy/piececonst_r421_N1024_smooth1.mat'
   total_num: 1024
   offset: 0
   n_sample: 1000
   nx: 421
-  sub: 7
+  sub: 5
   pde_sub: 2
 
 model:
-  layers: [64, 64, 64, 64, 64]
-  modes1: [20, 20, 20, 20]
-  modes2: [20, 20, 20, 20]
+  layers: [32, 32, 32, 32, 32]
+  modes1: [12, 12, 12, 12]
+  modes2: [12, 12, 12, 12]
   fc_dim: 128
   act: gelu
+  pad_ratio: [0.0, 0.0]
 
 train:
   batchsize: 20
-  epochs: 300
-  milestones: [100, 150, 200]
+  epochs: 500
+  milestones: [100, 200, 300, 400]
   base_lr: 0.001
   scheduler_gamma: 0.5
-  f_loss: 1.0
-  xy_loss: 5.0
+  f_loss: 0.0
+  xy_loss: 1.0
   save_dir: 'darcy-FDM'
   save_name: 'darcy-pretrain-pino.pt'
+  loss_save_name: 'train_loss_history.txt'
 
 log:
   project: 'PINO-Darcy-pretrain'

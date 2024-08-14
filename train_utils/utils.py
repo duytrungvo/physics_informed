@@ -307,3 +307,52 @@ def boundary_function(w, m, bc, nx, dx, BC):
         boundary_r = torch.stack((wL, mL), 1)
 
     return G1, G2, d2G1dx2, d2G2dx2, boundary_l, boundary_r
+
+
+def first_order_derivative(u, dx, dy):
+    pupy = (u[:, 2:, 1:-1] - u[:, :-2, 1:-1]) / 2 / dy
+    pupx = (u[:, 1:-1, 2:] - u[:, 1:-1, :-2]) / 2 / dx
+    return pupx, pupy
+
+
+# normalization, pointwise gaussian
+class UnitGaussianNormalizer(object):
+    def __init__(self, x, eps=0.00001):
+        super(UnitGaussianNormalizer, self).__init__()
+
+        # x could be in shape of ntrain*n or ntrain*T*n or ntrain*n*T
+        self.mean = torch.mean(x, 0)
+        self.std = torch.std(x, 0)
+        self.eps = eps
+
+    def encode(self, x):
+        x = (x - self.mean) / (self.std + self.eps)
+        return x
+
+    def decode(self, x, sample_idx=None):
+        if sample_idx is None:
+            std = self.std + self.eps  # n
+            mean = self.mean
+        else:
+            if len(self.mean.shape) == len(sample_idx[0].shape):
+                std = self.std[sample_idx] + self.eps  # batch*n
+                mean = self.mean[sample_idx]
+            if len(self.mean.shape) > len(sample_idx[0].shape):
+                std = self.std[:, sample_idx] + self.eps  # T*batch*n
+                mean = self.mean[:, sample_idx]
+
+        # x is in shape of batch*n or T*batch*n
+        x = (x * std) + mean
+        return x
+
+    def cuda(self):
+        self.mean = self.mean.cuda()
+        self.std = self.std.cuda()
+
+    def cpu(self):
+        self.mean = self.mean.cpu()
+        self.std = self.std.cpu()
+
+    def to(self, device):
+        self.mean = self.mean.to(device)
+        self.std = self.std.to(device)

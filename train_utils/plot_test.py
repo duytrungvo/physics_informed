@@ -14,13 +14,13 @@ from train_utils.datasets import BurgersLoader
 from models import FNO2d
 import matplotlib.pyplot as plt
 
-def plot_pred(data_config, test_x, test_y, preds_y, error_index):
+def plot_pred(data_config, test_x, test_y, pred_y, error_index):
     for i in range(3):
         # key = np.random.randint(0, data_config['n_sample'])
         key = error_index[-1-i]
         x_plot = test_x[key]
         y_true_plot = test_y[key]
-        y_pred_plot = preds_y[key]
+        y_pred_plot = pred_y[key]
 
         fig = plt.figure(figsize=(10, 12))
         if data_config['out_dim'] == 1:
@@ -188,3 +188,172 @@ def plot_solution(config):
 
     for key in range(3):
         plot_predictions(key, test_x, test_y, preds_y, print_index=False, save_path=None, font_size=11)
+def plot_darcy(mesh, test_x, test_y, pred_y):
+    a = test_x[..., 0].squeeze()
+    # a = a.squeeze()
+    u_true = test_y.squeeze()
+    u_pred = pred_y.squeeze()
+    x = mesh[..., 0]
+    y = mesh[..., 1]
+    # Plot
+    fig = plt.figure(figsize=(23, 5))
+    plt.subplot(1, 4, 1)
+    plt.pcolormesh(x, y, a, cmap='jet', shading='gouraud')
+    plt.colorbar()
+    plt.xlabel('$x$')
+    plt.ylabel('$y$')
+    plt.title(f'Input $a(x,y)$')
+    # plt.tight_layout()
+    plt.axis('square')
+
+    plt.subplot(1, 4, 2)
+    plt.pcolormesh(x, y, u_true, cmap='jet', shading='gouraud')
+    plt.colorbar()
+    plt.xlabel('$x$')
+    plt.ylabel('$y$')
+    plt.title(f'Exact $u(x,y)$')
+    # plt.tight_layout()
+    plt.axis('square')
+
+    plt.subplot(1, 4, 3)
+    plt.pcolormesh(x, y, u_pred, cmap='jet', shading='gouraud')
+    plt.colorbar()
+    plt.xlabel('$x$')
+    plt.ylabel('$y$')
+    plt.title(f'Predicted $u(x,y)$')
+    plt.axis('square')
+
+    plt.subplot(1, 4, 4)
+    # plt.pcolor(XX,TT, S_pred - S_test, cmap='jet')
+    plt.pcolormesh(x, y, torch.abs(u_pred - u_true), cmap='jet', shading='gouraud')
+    plt.colorbar()
+    plt.xlabel('$x$')
+    plt.ylabel('$y$')
+    plt.title('Absolute Error')
+    plt.tight_layout()
+    plt.axis('square')
+
+    plt.show()
+
+
+def plot_2Dplanar(mesh, test_x, test_y, pred_y):
+    a1 = test_x[..., 0].squeeze()
+    a2 = test_x[..., 1].squeeze()
+
+    u1_true = test_y[..., 0].squeeze()
+    u1_pred = pred_y[..., 0].squeeze()
+
+    u2_true = test_y[..., 1].squeeze()
+    u2_pred = pred_y[..., 1].squeeze()
+
+    u3_true = test_y[..., 2].squeeze()
+    u3_pred = pred_y[..., 2].squeeze()
+
+    u4_true = test_y[..., 3].squeeze()
+    u4_pred = pred_y[..., 3].squeeze()
+
+    u5_true = test_y[..., 4].squeeze()
+    u5_pred = pred_y[..., 4].squeeze()
+
+    x = mesh[..., 0]
+    y = mesh[..., 1]
+    # Plot
+    fig = plt.figure(figsize=(12, 5))
+    plt.subplot(1, 2, 1)
+    plot_sol_2d(x, y, a1, f'Input $f_x(x,y)$')
+    plt.axis('square')
+
+    plt.subplot(1, 2, 2)
+    plot_sol_2d(x, y, a2, f'Input $f_y(x,y)$')
+    plt.tight_layout()
+    plt.axis('square')
+    plt.show()
+
+    fig = plt.figure(figsize=(18, 5))
+    plt.subplot(1, 3, 1)
+    plot_sol_2d(x, y, u1_true, f'Exact $u(x,y)$')
+    plt.axis('square')
+
+    plt.subplot(1, 3, 2)
+    plot_sol_2d(x, y, u1_pred, f'Predicted $u(x,y)$')
+    plt.axis('square')
+
+    plt.subplot(1, 3, 3)
+    plot_abs_error(x, y, u1_pred, u1_true)
+    plt.tight_layout()
+    plt.axis('square')
+    plt.show()
+
+    fig = plt.figure(figsize=(18, 5))
+    plt.subplot(1, 3, 1)
+    plot_sol_2d(x, y, u2_true, f'Exact $v(x,y)$')
+    plt.axis('square')
+
+    plt.subplot(1, 3, 2)
+    plot_sol_2d(x, y, u2_pred, f'Predicted $v(x,y)$')
+    plt.axis('square')
+
+    plt.subplot(1, 3, 3)
+    plot_abs_error(x, y, u2_pred, u2_true)
+    plt.tight_layout()
+    plt.axis('square')
+    plt.show()
+
+    fig = plt.figure(figsize=(18, 5))
+    plt.subplot(1, 3, 1)
+    plot_sol_2d(x, y, u3_true, f'Exact $\sigma_x(x,y)$')
+    plt.axis('square')
+
+    plt.subplot(1, 3, 2)
+    plot_sol_2d(x, y, u3_pred, f'Predicted $\sigma_x(x,y)$')
+    plt.axis('square')
+
+    plt.subplot(1, 3, 3)
+    plot_abs_error(x, y, u3_pred, u3_true)
+    plt.tight_layout()
+    plt.axis('square')
+    plt.show()
+
+    fig = plt.figure(figsize=(18, 5))
+    plt.subplot(1, 3, 1)
+    plot_sol_2d(x, y, u4_true, f'Exact $\sigma_y(x,y)$')
+    plt.axis('square')
+
+    plt.subplot(1, 3, 2)
+    plot_sol_2d(x, y, u4_pred, f'Predicted $\sigma_y(x,y)$')
+    plt.axis('square')
+
+    plt.subplot(1, 3, 3)
+    plot_abs_error(x, y, u4_pred, u4_true)
+    plt.tight_layout()
+    plt.axis('square')
+    plt.show()
+
+    fig = plt.figure(figsize=(18, 5))
+    plt.subplot(1, 3, 1)
+    plot_sol_2d(x, y, u5_true, r'Exact $\tau_{xy}(x,y)$')
+    plt.axis('square')
+
+    plt.subplot(1, 3, 2)
+    plot_sol_2d(x, y, u5_pred, r'Predicted $\tau_{xy}(x,y)$')
+    plt.axis('square')
+
+    plt.subplot(1, 3, 3)
+    plot_abs_error(x, y, u5_pred, u5_true)
+    plt.tight_layout()
+    plt.axis('square')
+    plt.show()
+
+def plot_abs_error(x, y, up, ue):
+    plt.pcolormesh(x, y, torch.abs(up - ue), cmap='jet', shading='gouraud')
+    plt.colorbar()
+    plt.xlabel('$x$')
+    plt.ylabel('$y$')
+    plt.title('Absolute Error')
+
+def plot_sol_2d(x, y, u, title):
+    plt.pcolormesh(x, y, u, cmap='jet', shading='gouraud')
+    plt.colorbar()
+    plt.xlabel('$x$')
+    plt.ylabel('$y$')
+    plt.title(title)

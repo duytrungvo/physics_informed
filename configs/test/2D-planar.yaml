@@ -1,0 +1,30 @@
+data:
+  name: '2Dplanar'
+  datapath: '/home/vdtrung/trungvd/data/physics_informed/2Dplanar/planestrain_bodyforce_257_rng1.mat'
+  total_num: 1000
+  offset: 0
+  n_sample: 200
+  nx: 257
+  sub: 4
+  shuffle: False
+  E: 1.33333333
+  nu: 0.33333333
+
+model:
+  in_dim: 4
+  out_dim: 5
+  layers: [ 32, 32, 32, 32, 32 ]
+  modes1: [ 12, 12, 12, 12 ]
+  modes2: [ 12, 12, 12, 12 ]
+  fc_dim: 128
+  act: gelu
+
+test:
+  batchsize: 1
+  ckpt: 'checkpoints/2D-planar/2Dplanar-pretrain.pt'
+
+log:
+  project: 'PINO-2Dplanar'
+  group: 'default'
+
+

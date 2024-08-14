@@ -2,11 +2,11 @@ import yaml
 
 import torch
 from torch.utils.data import DataLoader
-from models import FNO3d, FNO2d
-from train_utils import NSLoader, get_forcing, DarcyFlow
-
+from models import FNO3d, FNO2d, FNO2d1
+from train_utils import NSLoader, get_forcing
+from train_utils.datasets import DarcyFlow, DarcyFlow_normalized, DarcyFlow_normalized_eval, DarcyFlow1
 from train_utils.eval_3d import eval_ns
-from train_utils.eval_2d import eval_darcy
+from train_utils.eval_2d import eval_darcy, eval_darcy1
 
 from argparse import ArgumentParser
 
@@ -66,6 +66,37 @@ def test_2d(config):
         print('Weights loaded from %s' % ckpt_path)
     eval_darcy(model, dataloader, config, device)
 
+def test_2d1(config):
+    device = 0 if torch.cuda.is_available() else 'cpu'
+    data_config = config['data']
+
+    dataset = DarcyFlow1(data_config['datapath'],
+                         nx=data_config['nx'],
+                         sub=data_config['sub'],
+                         offset=data_config['offset'], num=data_config['n_sample'])
+
+    # dataset = DarcyFlow_normalized_eval(data_config['datapath1'], data_config['datapath'],
+    #                     nx=data_config['nx'], sub=data_config['sub'],
+    #                     offset=data_config['offset'], num=data_config['n_sample'])
+
+    # dataset = DarcyFlow(data_config['datapath'],
+    #                     nx=data_config['nx'], sub=data_config['sub'],
+    #                     offset=data_config['offset'], num=data_config['n_sample'])
+    # dataloader = DataLoader(dataset, batch_size=config['test']['batchsize'], shuffle=False)
+    print(device)
+    model = FNO2d1(modes1=config['model']['modes1'],
+                  modes2=config['model']['modes2'],
+                  fc_dim=config['model']['fc_dim'],
+                  layers=config['model']['layers'],
+                  act=config['model']['act'],
+                  pad_ratio=[0.0, 0.11]).to(device)
+    # Load from checkpoint
+    if 'ckpt' in config['test']:
+        ckpt_path = config['test']['ckpt']
+        ckpt = torch.load(ckpt_path)
+        model.load_state_dict(ckpt['model'])
+        print('Weights loaded from %s' % ckpt_path)
+    eval_darcy1(model, dataset, config, device)
 
 if __name__ == '__main__':
     parser = ArgumentParser(description='Basic paser')
@@ -77,7 +108,7 @@ if __name__ == '__main__':
         config = yaml.load(stream, yaml.FullLoader)
 
     if 'name' in config['data'] and config['data']['name'] == 'Darcy':
-        test_2d(config)
+        test_2d1(config)
     else:
         test_3d(config)
 

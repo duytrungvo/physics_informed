@@ -2,7 +2,7 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 # from torchmetrics.functional.regression import r2_score
-from train_utils.utils import boundary_function
+from train_utils.utils import boundary_function, first_order_derivative
 
 def pino_loss_1d(func):
     def inner(*args, **kwargs):
@@ -462,3 +462,45 @@ def FDM_ReducedOrder2_Euler_Bernoulli_Beam_BSF(config_data, a, u, bc):
 @pino_loss_reduced_order2_1d
 def zeros_loss(*args, **kwargs):
     return torch.zeros(1), torch.zeros(1), torch.zeros(1), torch.zeros(1)
+
+def FDM_ReducedOrder_2Dplanar(config_data, a, u):
+    E = config_data['E']
+    nu = config_data['nu']
+    D11 = E * (1 - nu) / (1 + nu) / (1 - 2 * nu)
+    D12 = E * nu / (1 + nu) / (1 - 2 * nu)
+    D21 = D12
+    D22 = D11
+    D33 = E / 2 / (1 + nu)
+    nx = u.size(1)
+    dx = 1 / (nx - 1)
+    ny = u.size(2)
+    dy = 1 / (ny - 1)
+    u1 = u[..., 0]      # displ u
+    pu1px, pu1py = first_order_derivative(u1, dx, dy)
+    u2 = u[..., 1]      # displ v
+    pu2px, pu2py = first_order_derivative(u2, dx, dy)
+    sx = u[..., 2]      # stres sx
+    psxpx, psxpy = first_order_derivative(sx, dx, dy)
+    sy = u[..., 3]      # stres sy
+    psypx, psypy = first_order_derivative(sy, dx, dy)
+    txy = u[..., 4]      # stres txy
+    ptxypx, ptxypy = first_order_derivative(txy, dx, dy)
+    f = torch.zeros(pu1px.shape, device=u.device)
+    fx = a[..., 0]      # body force fx
+    fy = a[..., 1]      # body force fy
+
+    pde1 = F.mse_loss(psxpx + ptxypy + fx[:, 1:-1, 1:-1], f)
+    pde2 = F.mse_loss(ptxypx + psypy + fy[:, 1:-1, 1:-1], f)
+    pde3 = F.mse_loss(sx[:, 1:-1, 1:-1] - D11 * pu1px - D12 * pu2py, f)
+    pde4 = F.mse_loss(sy[:, 1:-1, 1:-1] - D21 * pu1px - D22 * pu2py, f)
+    pde5 = F.mse_loss(txy[:, 1:-1, 1:-1] - D33 * (pu2px + pu1py), f)
+    # lploss = LpLoss(size_average=True)
+    # pde1 = lploss.rel(-psxpx - ptxypy, fx[:, 1:-1, 1:-1])
+    # pde2 = lploss.rel(-ptxypx - psypy, fy[:, 1:-1, 1:-1])
+    # pde3 = lploss.rel(sx[:, 1:-1, 1:-1], D11 * pu1px + D12 * pu2py)
+    # pde4 = lploss.rel(sy[:, 1:-1, 1:-1], D21 * pu1px + D22 * pu2py)
+    # pde5 = lploss.rel(txy[:, 1:-1, 1:-1], D33 * (pu2px + pu1py))
+
+    # losspde = pde1 + pde2 + pde3 + pde4 + pde5
+
+    return pde1 + pde2 + pde3 + pde4 + pde5

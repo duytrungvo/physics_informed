@@ -6,11 +6,15 @@ from torch.utils.data import DataLoader
 
 from solver.random_fields import GaussianRF
 from train_utils import Adam
-from train_utils.datasets import NSLoader, online_loader, DarcyFlow, DarcyCombo
+from train_utils.datasets import NSLoader, online_loader, DarcyFlow, DarcyCombo, DarcyFlowv1, DarcyFlow1
 from train_utils.train_3d import mixed_train
-from train_utils.train_2d import train_2d_operator
-from models import FNO3d, FNO2d
+from train_utils.train_2d import train_2d_operator, train_2d_darcy
+from models import FNO3d, FNO2d, FNO2dv1, FNO2dv2
+import numpy as np
+import matplotlib.pyplot as plt
 
+torch.manual_seed(0)
+np.random.seed(0)
 
 def train_3d(args, config):
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
@@ -80,14 +84,14 @@ def train_2d(args, config):
     data_config = config['data']
 
     # dataset = DarcyFlow(data_config['datapath'],
-                        # nx=data_config['nx'], sub=data_config['sub'],
-                        # offset=data_config['offset'], num=data_config['n_sample'])
+    #                     nx=data_config['nx'], sub=data_config['sub'],
+    #                     offset=data_config['offset'], num=data_config['n_sample'])
 
-    dataset = DarcyCombo(datapath=data_config['datapath'], 
-                         nx=data_config['nx'], 
-                         sub=data_config['sub'], 
-                         pde_sub=data_config['pde_sub'], 
-                         num=data_config['n_samples'], 
+    dataset = DarcyCombo(datapath=data_config['datapath'],
+                         nx=data_config['nx'],
+                         sub=data_config['sub'],
+                         pde_sub=data_config['pde_sub'],
+                         num=data_config['n_samples'],
                          offset=data_config['offset'])
     train_loader = DataLoader(dataset, batch_size=config['train']['batchsize'], shuffle=True)
     model = FNO2d(modes1=config['model']['modes1'],
@@ -115,6 +119,71 @@ def train_2d(args, config):
                       project=config['log']['project'],
                       group=config['log']['group'])
 
+    path = config['train']['save_dir']
+    ckpt_dir = 'checkpoints/%s/' % path
+    loss_history = np.loadtxt(ckpt_dir + 'train_loss_history.txt')
+    plt.semilogy(range(len(loss_history)), loss_history)
+    plt.xlabel('Epochs')
+    plt.ylabel('$Loss$')
+    plt.tight_layout()
+    plt.legend(['train_loss', 'pde_l2', 'data_l2'])
+    plt.show()
+
+def train_2dv1(args, config):
+    data_config = config['data']
+
+    dataset = DarcyFlowv1(data_config['datapath'],
+                        nx=data_config['nx'], sub=data_config['sub'],
+                        offset=data_config['offset'], num=data_config['n_sample'])
+
+    train_loader = DataLoader(dataset, batch_size=config['train']['batchsize'], shuffle=True)
+
+    model = FNO2dv2(modes1=config['model']['modes1'],
+                   modes2=config['model']['modes2'],
+                   fc_dim=config['model']['fc_dim'],
+                   layers=config['model']['layers'],
+                   act=config['model']['act'],
+                   pad_ratio=config['model']['pad_ratio'])
+
+    # Load from checkpoint
+    if 'ckpt' in config['train']:
+        ckpt_path = config['train']['ckpt']
+        ckpt = torch.load(ckpt_path)
+        model.load_state_dict(ckpt['model'])
+        print('Weights loaded from %s' % ckpt_path)
+
+
+    # optimizer = Adam(model.parameters(), betas=(0.9, 0.999),
+    #                  lr=config['train']['base_lr'])
+    # optimizer = torch.optim.Adam(model.parameters(), betas=(0.9, 0.999), lr=config['train']['base_lr'])
+    # scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer,
+    #                                                  milestones=config['train']['milestones'],
+    #                                                  gamma=config['train']['scheduler_gamma'])
+
+    # optimizer = torch.optim.Adam(model.parameters(), betas=(0.9, 0.999),
+    #                              lr=0.001)
+    # scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer,
+    #                                                  milestones=[100, 200, 300, 400],
+    #                                                  gamma=0.5)
+
+    optimizer = torch.optim.Adam(model.parameters(), lr=config['train']['base_lr'], weight_decay=1e-4)
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=25000)
+    # scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=50, gamma=0.5)
+
+    train_2d_darcy(model,
+                   train_loader,
+                   optimizer, scheduler,
+                   config, use_tqdm=False)
+
+    path = config['train']['save_dir']
+    ckpt_dir = 'checkpoints/%s/' % path
+    loss_history = np.loadtxt(ckpt_dir + 'train_loss_history.txt')
+    plt.semilogy(range(len(loss_history)), loss_history)
+    plt.xlabel('Epochs')
+    plt.ylabel('$Loss$')
+    plt.tight_layout()
+    plt.legend(['train_loss', 'pde_l2', 'data_l2'])
+    plt.show()
 
 if __name__ == '__main__':
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
@@ -130,6 +199,6 @@ if __name__ == '__main__':
         config = yaml.load(stream, yaml.FullLoader)
 
     if 'name' in config['data'] and config['data']['name'] == 'Darcy':
-        train_2d(args, config)
+        train_2dv1(args, config)
     else:
         train_3d(args, config)
