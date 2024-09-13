@@ -1,17 +1,17 @@
 data:
-  name: 'Euler-Bernoulli Beam'
-  BC: 'HH'
-  datapath: '/mnt/sbd1/data/trungvd/data/physics_informed/eb_beam/linear/eb_beam_linear_cir_hollow_HH_1025_rng0.mat'
-  total_num: 40000
+  name: 'bidirectional FG Beam'
+  BC: 'CC'
+  datapath: '/mnt/sbd1/data/trungvd/data/physics_informed/FGbeam/powerlaw_1025_rng0.mat'
+  total_num: 5000
   offset: 0
-  n_sample: 500
+  n_sample: 2000
   nx: 1025
   sub: 8
   in_dim: 3
   out_dim: 2
-  q0: 1.0
-  E: 1.0
-  I0: 1.0
+  q: 0.01
+  E1: 200.0
+  E2: 100.0
   L: 1.0
 
 model:
@@ -24,7 +24,7 @@ model:
 
 train:
   batchsize: 20
-  epochs: 200
+  epochs: 1000
   milestones: [ 100, 200, 300, 400, 500, 600, 700, 800, 900, 1000,
                 1100, 1200, 1300, 1400, 1500, 1600, 1700, 1800, 1900]
   base_lr: 0.001
@@ -35,6 +35,6 @@ train:
   xy_loss: 0.0            # weight loss of datum information
   pino_loss: 'reduced_order2_bsf'
   balance_scheme: 'sum'
-  save_dir: 'eb-beam'
-  save_name: 'eb-beam-pretrain-eqn.pt'
+  save_dir: 'FGbeam'
+  save_name: 'FGbeam-pretrain-eqn.pt'
   loss_save_name: 'train_loss_history.txt'

@@ -108,6 +108,34 @@ class Loader_1D(object):
             loader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=False)
         return loader
 
+class Loader_FGbeam(object):
+    def __init__(self, datapath, nx=2**10+1, sub=8, in_dim=1, out_dim=1):
+        dataloader = MatReader(datapath)
+        self.sub = sub
+        self.s = int(np.ceil(nx / sub))
+        self.in_dim = in_dim
+        self.out_dim = out_dim
+        if len((dataloader.read_field('input')).size()) == 2:
+            self.x_data = dataloader.read_field('input')[:, ::sub].unsqueeze(2)
+        else:
+            self.x_data = dataloader.read_field('input')[:, ::sub, :in_dim-1]
+            # self.param = dataloader.read_field('parameter')[:, :]
+        self.gridx = dataloader.read_field('x')[:, ::sub]
+
+    def make_loader(self, n_sample, batch_size, start=0, train=True):
+        xs = self.x_data[start:start + n_sample]
+
+        xs = torch.cat((xs, self.gridx.repeat([n_sample, 1]).unsqueeze(2)), 2)
+        # dataset = torch.utils.data.TensorDataset(xs)
+        if train:
+            loader = torch.utils.data.DataLoader(xs, batch_size=batch_size, shuffle=True)
+        else:
+            # param = self.param[start: start + n_sample]
+            # dataset = torch.utils.data.TensorDataset(xs, param)
+            loader = torch.utils.data.DataLoader(xs, batch_size=batch_size, shuffle=False)
+        return loader
+
+
 
 class BurgersLoader(object):
     def __init__(self, datapath, nx=2 ** 10, nt=100, sub=8, sub_t=1, new=False):

@@ -1,0 +1,28 @@
+data:
+  name: 'bidirectional FG Beam'
+  BC: 'CC'
+  datapath: '/mnt/sbd1/data/trungvd/data/physics_informed/FGbeam/powerlaw_validate_1025_rng0.1.mat'
+  total_num: 11
+  offset: 0
+  n_sample: 11
+  nx: 1025
+  sub: 8
+  in_dim: 5
+  out_dim: 3
+  q: 0.01
+  E1: 200.0
+  E2: 100.0
+  L: 1.0
+
+model:
+  name: 'fno'
+  layers: [64, 64, 64, 64, 64]
+  modes: [10, 10, 10, 10]
+  fc_dim: 128
+  act: gelu
+  apply_output_transform: 'yes'
+
+test:
+  batchsize: 1
+  pino_loss: 'reduced_order2_bsf'
+  ckpt: 'checkpoints/FGbeam/FGbeam-pretrain-eqn.pt'

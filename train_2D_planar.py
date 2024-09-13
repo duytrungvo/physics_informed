@@ -10,8 +10,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 from train_utils.eval_2d import eval_2Dplanar
 
-torch.manual_seed(0)
-np.random.seed(0)
+torch.manual_seed(1)
+np.random.seed(1)
 
 def train_2d(args, config):
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
@@ -80,14 +80,14 @@ def train_2dv1(args, config):
         model.load_state_dict(ckpt['model'])
         print('Weights loaded from %s' % ckpt_path)
 
-    # optimizer = torch.optim.Adam(model.parameters(), betas=(0.9, 0.999),
-    #                  lr=config['train']['base_lr'])
-    # scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer,
-    #                                                  milestones=config['train']['milestones'],
-    #                                                  gamma=config['train']['scheduler_gamma'])
+    optimizer = torch.optim.Adam(model.parameters(), betas=(0.9, 0.999),
+                     lr=config['train']['base_lr'])
+    scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer,
+                                                     milestones=config['train']['milestones'],
+                                                     gamma=config['train']['scheduler_gamma'])
 
-    optimizer = torch.optim.Adam(model.parameters(), lr=config['train']['base_lr'], weight_decay=1e-4)
-    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=50000)
+    # optimizer = torch.optim.Adam(model.parameters(), lr=config['train']['base_lr'], weight_decay=1e-4)
+    # scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=50000)
 
     train_2d_planar(model,
                       train_loader,

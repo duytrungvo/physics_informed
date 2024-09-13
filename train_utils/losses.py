@@ -30,6 +30,21 @@ def pino_loss_reduced_order2_1d(func):
         return f_loss1, f_loss2, loss_boundary_l, loss_boundary_r
     return inner
 
+def pino_loss_FGTimoshenko_beam(func):
+    def inner(*args, **kwargs):
+        Du1, Du2, Du3, boundary_l, boundary_r = func(*args, **kwargs)
+        f1 = torch.zeros(Du1.shape, device=args[2].device)
+        f_loss1 = F.mse_loss(Du1, f1)
+        f2 = torch.zeros(Du2.shape, device=args[2].device)
+        f_loss2 = F.mse_loss(Du2, f2)
+        f3 = torch.zeros(Du3.shape, device=args[2].device)
+        f_loss3 = F.mse_loss(Du3, f3)
+
+        loss_boundary_l = F.mse_loss(boundary_l, torch.zeros(boundary_l.shape, device=args[2].device))
+        loss_boundary_r = F.mse_loss(boundary_r, torch.zeros(boundary_r.shape, device=args[2].device))
+
+        return f_loss1, f_loss2, f_loss3, loss_boundary_l, loss_boundary_r
+    return inner
 
 def FDM_Darcy(u, a, D=1):
     batchsize = u.size(0)
@@ -462,6 +477,82 @@ def FDM_ReducedOrder2_Euler_Bernoulli_Beam_BSF(config_data, a, u, bc):
 @pino_loss_reduced_order2_1d
 def zeros_loss(*args, **kwargs):
     return torch.zeros(1), torch.zeros(1), torch.zeros(1), torch.zeros(1)
+
+@pino_loss_FGTimoshenko_beam
+def FDM_FGTimoshenko_Beam_BSF(config_data, a, u):
+    batchsize = u.size(0)
+    nx = u.size(1)
+    dx = 1 / (nx - 1)
+    q = config_data['q']
+    # E = config_data['E']
+    BC = config_data['BC']
+    out_dim = config_data['out_dim']
+    u = u.reshape(batchsize, nx, out_dim)
+
+    u0x = (-u[:, :-2, 0] + u[:, 2:, 0]) / dx / 2
+    phix = (-u[:, :-2, 1] + u[:, 2:, 1]) / dx / 2
+    wx = (-u[:, :-2, 2] + u[:, 2:, 2]) / dx / 2
+
+    u0xx = (u[:, :-2, 0] - 2 * u[:, 1:-1, 0] + u[:, 2:, 0]) / dx ** 2
+    phixx = (u[:, :-2, 1] - 2 * u[:, 1:-1, 1] + u[:, 2:, 1]) / dx ** 2
+    wxx = (u[:, :-2, 2] - 2 * u[:, 1:-1, 2] + u[:, 2:, 2]) / dx ** 2
+
+    # E0x = (-a[:, :-2, 0] + a[:, 2:, 0]) / dx / 2
+    E1x = (-a[:, :-2, 1] + a[:, 2:, 1]) / dx / 2
+    E2x = (-a[:, :-2, 2] + a[:, 2:, 2]) / dx / 2
+    G0x = (-a[:, :-2, 3] + a[:, 2:, 3]) / dx / 2
+
+    E0 = a[:, 1:-1, 0]
+    E1 = a[:, 1:-1, 1]
+    E2 = a[:, 1:-1, 2]
+    G0 = a[:, 1:-1, 3]
+    # u0 = u[:, 1:-1, 0]
+    phi = u[:, 1:-1, 1]
+    # w = u[:, 1:-1, 2]
+
+    Du1 = (E2 * phixx + E2x * phix - E1 * u0xx - E1x * u0x - G0 * (wx - phi))
+    Du2 = (G0 * wxx + G0x * wx - G0 * phix - G0x * phi + q)
+    Du3 = (E0 * u0x - E1 * phix)
+
+    if BC == 'CC':
+        boundary_l = u[:, 0, :]
+        boundary_r = u[:, -1, :]
+
+    return Du1, Du2, Du3, boundary_l, boundary_r
+
+@pino_loss_reduced_order2_1d
+def FDM_FGTimoshenko_Beam_BSF2(config_data, a, u):
+    batchsize = u.size(0)
+    nx = u.size(1)
+    dx = 1 / (nx - 1)
+    q = config_data['q']
+    # E = config_data['E']
+    BC = config_data['BC']
+    out_dim = config_data['out_dim']
+    u = u.reshape(batchsize, nx, out_dim)
+
+    Et = a[:, 1:-1, 0]
+    G0 = a[:, 1:-1, 1]
+    w = u[:, 1:-1, 0]
+    phi = u[:, 1:-1, 1]
+
+    Etx = (-a[:, :-2, 0] + a[:, 2:, 0]) / dx / 2
+    G0x = (-a[:, :-2, 1] + a[:, 2:, 1]) / dx / 2
+
+    wx = (-u[:, :-2, 0] + u[:, 2:, 0]) / dx / 2
+    phix = (-u[:, :-2, 1] + u[:, 2:, 1]) / dx / 2
+
+    wxx = (u[:, :-2, 0] - 2 * u[:, 1:-1, 0] + u[:, 2:, 0]) / dx ** 2
+    phixx = (u[:, :-2, 1] - 2 * u[:, 1:-1, 1] + u[:, 2:, 1]) / dx ** 2
+
+    Du1 = Etx * phix + Et * phixx - G0 * (wx - phi)
+    Du2 = G0x * (wx - phi) + G0 * (wxx - phix) + q
+
+    if BC == 'CC':
+        boundary_l = u[:, 0, :]
+        boundary_r = u[:, -1, :]
+
+    return Du1, Du2, boundary_l, boundary_r
 
 def FDM_ReducedOrder_2Dplanar(config_data, a, u):
     E = config_data['E']
