@@ -10,11 +10,10 @@ data:
   in_dim: 2
   out_dim: 2
   q: 100.0
-  nu: 0.3
   L: 1.0
-  h: 0.05
   b: 0.01
-  kappa: 0.833333333
+  h: 0.05
+  Em: 70000000.0
 
 model:
   name: 'fno'
@@ -26,5 +25,4 @@ model:
 
 test:
   batchsize: 1
-  pino_loss: 'reduced_order2_bsf'
-  ckpt: 'checkpoints/FGbeam/FGbeam-pretrain-eqn.pt'
+  ckpt: 'checkpoints/FGbeam/EB_FGbeam-pretrain-eqn.pt'

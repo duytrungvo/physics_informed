@@ -10,11 +10,10 @@ data:
   in_dim: 2
   out_dim: 2
   q: 100.0
-  nu: 0.3
   L: 1.0
-  h: 0.05
   b: 0.01
-  kappa: 0.833333333
+  h: 0.05
+  Em: 70000000.0
 
 model:
   name: 'fno'
@@ -35,8 +34,7 @@ train:
   bc_loss_l: 0.0
   bc_loss_r: 0.0
   xy_loss: 0.0            # weight loss of datum information
-  pino_loss: 'reduced_order2_bsf'
   balance_scheme: 'sum'
   save_dir: 'FGbeam'
-  save_name: 'FGbeam-pretrain-eqn.pt'
+  save_name: 'EB_FGbeam-pretrain-eqn.pt'
   loss_save_name: 'train_loss_history.txt'

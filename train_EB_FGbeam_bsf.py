@@ -3,9 +3,10 @@ import yaml
 import torch
 from models import FNO1d, FCNet, NNet
 from train_utils import Adam
-from train_utils.datasets import Loader_FGbeam
-from train_utils.train_1d import train_1dFGbeam
-from train_utils.losses import LpLoss, FDM_FGTimoshenko_Beam_BSF3
+from train_utils.datasets import Loader_1D, Loader_FGbeam
+from train_utils.train_1d import train_1drb, train_1d_EB_FGbeam
+from train_utils.losses import LpLoss, FDM_ReducedOrder2_Euler_Bernoulli_FGBeam_BSF, \
+    FDM_ReducedOrder2_Euler_Bernoulli_FGBeam_BSF_norm
 from train_utils.plot_test import plot_pred
 from train_utils.utils import shape_function, boundary_function, test_func_disp, test_func_moment
 import numpy as np
@@ -20,10 +21,10 @@ def run(config):
     data_config = config['data']
 
     dataset = Loader_FGbeam(data_config['datapath'],
-                        nx=data_config['nx'],
-                        sub=data_config['sub'],
-                        in_dim=data_config['in_dim'],
-                        out_dim=data_config['out_dim'])
+                            nx=data_config['nx'],
+                            sub=data_config['sub'],
+                            in_dim=data_config['in_dim'],
+                            out_dim=data_config['out_dim'])
 
     train_loader = dataset.make_loader(n_sample=data_config['n_sample'],
                                        batch_size=config['train']['batchsize'],
@@ -41,11 +42,11 @@ def run(config):
                       act=model_config['act']).to(device)
 
         psi = test_func_disp(data_config['BC'])
-        # varphi = test_func_moment(data_config['BC'])
+        varphi = test_func_moment(data_config['BC'])
 
         model.apply_output_transform(
             [lambda x, y: psi(x, L) * y,
-             lambda x, y: psi(x, L) * y]
+             lambda x, y: varphi(x, L) * y]
         )
 
     # train
@@ -56,8 +57,12 @@ def run(config):
                                                      milestones=train_config['milestones'],
                                                      gamma=train_config['scheduler_gamma'])
 
-    pino_loss = FDM_FGTimoshenko_Beam_BSF3
-    train_1dFGbeam(model,
+    # optimizer = torch.optim.Adam(model.parameters(), lr=0.001, weight_decay=1e-4)
+    # scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=100000)
+
+    pino_loss = FDM_ReducedOrder2_Euler_Bernoulli_FGBeam_BSF
+    # pino_loss = FDM_ReducedOrder2_Euler_Bernoulli_FGBeam_BSF_norm
+    train_1d_EB_FGbeam(model,
              train_loader,
              optimizer,
              scheduler,
@@ -79,14 +84,17 @@ def run(config):
 def test(config):
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
     data_config = config['data']
+
     dataset = Loader_FGbeam(data_config['datapath'],
-                        nx=data_config['nx'],
-                        sub=data_config['sub'],
-                        in_dim=data_config['in_dim'],
-                        out_dim=data_config['out_dim'])
+                            nx=data_config['nx'],
+                            sub=data_config['sub'],
+                            in_dim=data_config['in_dim'],
+                            out_dim=data_config['out_dim'])
+
     data_loader = dataset.make_loader(n_sample=data_config['n_sample'],
                                       batch_size=config['test']['batchsize'],
-                                      start=data_config['offset'], train=False)
+                                      start=data_config['offset'],
+                                      train=False)
 
     model_config = config['model']
     L = data_config['L']
@@ -99,11 +107,11 @@ def test(config):
                       act=model_config['act']).to(device)
 
         psi = test_func_disp(data_config['BC'])
-        # varphi = test_func_moment(data_config['BC'])
+        varphi = test_func_moment(data_config['BC'])
 
         model.apply_output_transform(
             [lambda x, y: psi(x, L) * y,
-             lambda x, y: psi(x, L) * y]
+             lambda x, y: varphi(x, L) * y]
         )
 
     # Load from checkpoint
@@ -113,7 +121,8 @@ def test(config):
         model.load_state_dict(ckpt['model'])
         print('Weights loaded from %s' % ckpt_path)
 
-    pino_loss = FDM_FGTimoshenko_Beam_BSF3
+    pino_loss = FDM_ReducedOrder2_Euler_Bernoulli_FGBeam_BSF
+    # pino_loss = FDM_ReducedOrder2_Euler_Bernoulli_FGBeam_BSF_norm
     myloss = LpLoss(size_average=True)
     model.eval()
     nsample = data_config['n_sample']
@@ -122,41 +131,50 @@ def test(config):
     s = int(np.ceil(data_config['nx'] / data_config['sub']))
     test_x = np.zeros((nsample, s, in_dim))
     preds_y = np.zeros((nsample, s, out_dim))
-    test_err_loss1 = []
-    test_err_loss2 = []
-    # test_err_loss3 = []
-    # batchsize = config['test']['batchsize']
-    # dx = 1 / (s - 1)
-    # x_test = data_loader.dataset[0][0][:, -1].repeat(batchsize).reshape(batchsize, s)
-    # bc = shape_function(data_config['BC'], x_test, L)
+    test_y = np.zeros((nsample, s, out_dim))
+    test_err = []
+    test_err_pde1 = []
+    test_err_pde2 = []
+    batchsize = config['test']['batchsize']
+    dx = 1 / (s - 1)
+    x_test = data_loader.dataset[0][:, -1].repeat(batchsize).reshape(batchsize, s)
+    bc = shape_function(data_config['BC'], x_test, L)
     with torch.no_grad():
         for i, data_x in enumerate(data_loader):
-            # data_x, param = data
             data_x = data_x.to(device)
             pred_y = model(data_x)
 
-            loss1, loss2, _, _ = pino_loss(config['data'], data_x, pred_y)
-            test_err_loss1.append(loss1.item())
-            test_err_loss2.append(loss2.item())
-            # test_err_loss3.append(loss3.item())
-            test_x[i] = data_x.cpu().numpy()
-            preds_y[i] = pred_y.cpu().numpy()
+            G1, G2, _, _, _, _ = boundary_function(pred_y[:, :, 0], pred_y[:, :, 1], bc, s, dx, data_config['BC'])
 
-    # mean_err = np.mean(test_err)
-    # std_err = np.std(test_err, ddof=1) / np.sqrt(len(test_err))
-    mean_err_loss1 = np.mean(test_err_loss1)
-    std_err_loss1 = np.std(test_err_loss1, ddof=1) / np.sqrt(len(test_err_loss1))
-    mean_err_loss2 = np.mean(test_err_loss2)
-    std_err_loss2 = np.std(test_err_loss2, ddof=1) / np.sqrt(len(test_err_loss2))
-    # mean_err_loss3 = np.mean(test_err_loss3)
-    # std_err_loss3 = np.std(test_err_loss3, ddof=1) / np.sqrt(len(test_err_loss3))
+            pred_y0 = pred_y[:, :, 0] - G1
+            pred_y1 = pred_y[:, :, 1] - G2
+            pred_y_bsf = torch.stack((pred_y0, pred_y1), 2)
+
+            # data_loss = torch.tensor(0)
+            pde_loss1, pde_loss2, _, _ = pino_loss(config['data'], data_x, pred_y_bsf, bc)
+            pde_loss = pde_loss1 + pde_loss2
+            # data_loss_w = myloss(pred_y_bsf[:, :, 0], data_y[:, :, 0])
+            # data_loss_m = myloss(pred_y_bsf[:, :, 1], data_y[:, :, 1])
+            test_err.append(pde_loss.item())
+            test_err_pde1.append(pde_loss1.item())
+            test_err_pde2.append(pde_loss2.item())
+            test_x[i] = data_x.cpu().numpy()
+            # test_y[i] = data_y.cpu().numpy()
+            preds_y[i] = pred_y_bsf.cpu().numpy()
+
+    mean_err = np.mean(test_err)
+    std_err = np.std(test_err, ddof=1) / np.sqrt(len(test_err))
+    mean_err_pde1 = np.mean(test_err_pde1)
+    std_err_pde1 = np.std(test_err_pde1, ddof=1) / np.sqrt(len(test_err))
+    mean_err_pde2 = np.mean(test_err_pde2)
+    std_err_pde2 = np.std(test_err_pde2, ddof=1) / np.sqrt(len(test_err))
 
     print(f'==Test for {nsample} samples==')
-    print(f'==Averaged MSE error mean(Du1): {mean_err_loss1}, std error: {std_err_loss1}==')
-    print(f'==Averaged MSE error mean(Du2): {mean_err_loss2}, std error: {std_err_loss2}==')
-    # print(f'==Averaged MSE error mean(w): {mean_err_loss3}, std error: {std_err_loss3}==')
+    print(f'==Averaged relative L2 error mean(pde1 & 2): {mean_err}, std error: {std_err}==')
+    print(f'==Averaged relative L2 error mean(pde1): {mean_err_pde1}, std error: {std_err_pde1}==')
+    print(f'==Averaged relative L2 error mean(pde2): {mean_err_pde2}, std error: {std_err_pde2}==')
 
-    savemat('TB_powerlaw_CC.mat', {'x': test_x, 'yp': preds_y})
+    # savemat('EB_powerlaw_CC_data3.mat', {'x': test_x, 'yp': preds_y})
     # err_idx = np.argsort(test_err)
     # err_idx = np.arange(0, nsample)
     # np.random.shuffle(err_idx)

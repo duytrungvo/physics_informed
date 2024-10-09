@@ -545,12 +545,110 @@ def FDM_FGTimoshenko_Beam_BSF2(config_data, a, u):
     wxx = (u[:, :-2, 0] - 2 * u[:, 1:-1, 0] + u[:, 2:, 0]) / dx ** 2
     phixx = (u[:, :-2, 1] - 2 * u[:, 1:-1, 1] + u[:, 2:, 1]) / dx ** 2
 
-    Du1 = Etx * phix + Et * phixx - G0 * (wx - phi)
-    Du2 = G0x * (wx - phi) + G0 * (wxx - phix) + q
+    Du1 = Etx * phix / G0 + Et * phixx / G0 - (wx - phi)
+    Du2 = G0x * (wx - phi) / G0 + (wxx - phix) + q / G0
 
     if BC == 'CC':
         boundary_l = u[:, 0, :]
         boundary_r = u[:, -1, :]
+
+    return Du1, Du2, boundary_l, boundary_r
+
+@pino_loss_reduced_order2_1d
+def FDM_FGTimoshenko_Beam_BSF3(config_data, a, u):
+    batchsize = u.size(0)
+    nx = u.size(1)
+    dx = 1 / (nx - 1)
+    b = config_data['b']
+    h = config_data['h']
+    kappa = config_data['kappa']
+    nu = config_data['nu']
+    q = config_data['q']
+    # E = config_data['E']
+    BC = config_data['BC']
+    out_dim = config_data['out_dim']
+    u = u.reshape(batchsize, nx, out_dim)
+
+    coef = 6 * kappa / h**2 / (1 + nu)
+    Et = a[:, 1:-1, 0]
+    G0 = coef * Et
+    w = u[:, 1:-1, 0]
+    phi = u[:, 1:-1, 1]
+
+    Etx = (-a[:, :-2, 0] + a[:, 2:, 0]) / dx / 2
+    G0x = coef * Etx
+
+    wx = (-u[:, :-2, 0] + u[:, 2:, 0]) / dx / 2
+    phix = (-u[:, :-2, 1] + u[:, 2:, 1]) / dx / 2
+
+    wxx = (u[:, :-2, 0] - 2 * u[:, 1:-1, 0] + u[:, 2:, 0]) / dx ** 2
+    phixx = (u[:, :-2, 1] - 2 * u[:, 1:-1, 1] + u[:, 2:, 1]) / dx ** 2
+
+    # Du1 = (G0x * (wx + phi) + G0 * (wxx + phix)) / (q * b) - 1.0
+    # Du2 = (Etx * phix + Et * phixx) - G0 * (wx + phi)
+
+    Du1 = Etx * (wx + phi) + Et * (wxx + phix) - (q * b) / coef
+    Du2 = (Etx * phix + Et * phixx) / coef - Et * (wx + phi)
+
+    if BC == 'CC':
+        boundary_l = u[:, 0, :]
+        boundary_r = u[:, -1, :]
+
+    return Du1, Du2, boundary_l, boundary_r
+
+@pino_loss_reduced_order2_1d
+def FDM_ReducedOrder2_Euler_Bernoulli_FGBeam_BSF(config_data, a, u, bc):
+    batchsize = u.size(0)
+    nx = u.size(1)
+    dx = 1 / (nx - 1)
+    # E = config_data['E']
+    q = config_data['q']
+    b = config_data['b']
+    BC = config_data['BC']
+    out_dim = config_data['out_dim']
+    u = u.reshape(batchsize, nx, out_dim)
+
+    mxx = (u[:, :-2, 1] - 2 * u[:, 1:-1, 1] + u[:, 2:, 1]) / dx ** 2
+    uxx = (u[:, :-2, 0] - 2 * u[:, 1:-1, 0] + u[:, 2:, 0]) / dx ** 2
+    D = a[:, 1:-1, 0]
+    m = u[:, 1:-1, 1]
+
+    G1, G2, d2G1dx2, d2G2dx2, boundary_l, boundary_r \
+        = boundary_function(u[:, :, 0], u[:, :, 1], bc, nx, dx, BC)
+
+    Du1 = (mxx - d2G2dx2[:, 1:-1]) / (q * b) + 1.0
+    # Du2 = E * I * (uxx - d2G1dx2[:, 1:-1]) + m - G2[:, 1:-1]
+    # Du2 = (uxx - d2G1dx2[:, 1:-1]) - (m - G2[:, 1:-1]) / D
+    Du2 = D * (uxx - d2G1dx2[:, 1:-1]) - (m - G2[:, 1:-1])
+
+    return Du1, Du2, boundary_l, boundary_r
+
+@pino_loss_reduced_order2_1d
+def FDM_ReducedOrder2_Euler_Bernoulli_FGBeam_BSF_norm(config_data, a, u, bc):
+    batchsize = u.size(0)
+    nx = u.size(1)
+    dx = 1 / (nx - 1)
+    L = config_data['L']
+    q = config_data['q']
+    b = config_data['b']
+    h = config_data['h']
+    Em = config_data['Em']
+    P = 100.0 * Em * h**3 / q / L**4
+    BC = config_data['BC']
+    out_dim = config_data['out_dim']
+    u = u.reshape(batchsize, nx, out_dim)
+
+    mxx = (u[:, :-2, 1] - 2 * u[:, 1:-1, 1] + u[:, 2:, 1]) / dx ** 2
+    uxx = (u[:, :-2, 0] - 2 * u[:, 1:-1, 0] + u[:, 2:, 0]) / dx ** 2
+    D = a[:, 1:-1, 0]
+    m = u[:, 1:-1, 1]
+
+    G1, G2, d2G1dx2, d2G2dx2, boundary_l, boundary_r \
+        = boundary_function(u[:, :, 0], u[:, :, 1], bc, nx, dx, BC)
+
+    Du1 = (mxx - d2G2dx2[:, 1:-1]) / (q * b) / L**2 + 1.0
+    # Du2 = (uxx - d2G1dx2[:, 1:-1]) - (m - G2[:, 1:-1]) * P * L**2 / D
+    Du2 = (uxx - d2G1dx2[:, 1:-1]) * D / P / L**2 - (m - G2[:, 1:-1])
 
     return Du1, Du2, boundary_l, boundary_r
 
