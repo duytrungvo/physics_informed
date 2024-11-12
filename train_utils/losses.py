@@ -616,7 +616,7 @@ def FDM_ReducedOrder2_Euler_Bernoulli_FGBeam_BSF(config_data, a, u, bc):
     G1, G2, d2G1dx2, d2G2dx2, boundary_l, boundary_r \
         = boundary_function(u[:, :, 0], u[:, :, 1], bc, nx, dx, BC)
 
-    Du1 = (mxx - d2G2dx2[:, 1:-1]) / (q * b) + 1.0
+    Du1 = (mxx - d2G2dx2[:, 1:-1]) / q + 1.0
     # Du2 = E * I * (uxx - d2G1dx2[:, 1:-1]) + m - G2[:, 1:-1]
     # Du2 = (uxx - d2G1dx2[:, 1:-1]) - (m - G2[:, 1:-1]) / D
     Du2 = D * (uxx - d2G1dx2[:, 1:-1]) - (m - G2[:, 1:-1])
@@ -633,7 +633,7 @@ def FDM_ReducedOrder2_Euler_Bernoulli_FGBeam_BSF_norm(config_data, a, u, bc):
     b = config_data['b']
     h = config_data['h']
     Em = config_data['Em']
-    P = 100.0 * Em * h**3 / q / L**4
+    P = 100.0 * Em * h**3 * b / q / L**4
     BC = config_data['BC']
     out_dim = config_data['out_dim']
     u = u.reshape(batchsize, nx, out_dim)
@@ -646,8 +646,8 @@ def FDM_ReducedOrder2_Euler_Bernoulli_FGBeam_BSF_norm(config_data, a, u, bc):
     G1, G2, d2G1dx2, d2G2dx2, boundary_l, boundary_r \
         = boundary_function(u[:, :, 0], u[:, :, 1], bc, nx, dx, BC)
 
-    Du1 = (mxx - d2G2dx2[:, 1:-1]) / (q * b) / L**2 + 1.0
-    # Du2 = (uxx - d2G1dx2[:, 1:-1]) - (m - G2[:, 1:-1]) * P * L**2 / D
+    # Du1 = (mxx - d2G2dx2[:, 1:-1]) / q / L**2 + 1.0
+    Du1 = (mxx - d2G2dx2[:, 1:-1]) / L**2 + q
     Du2 = (uxx - d2G1dx2[:, 1:-1]) * D / P / L**2 - (m - G2[:, 1:-1])
 
     return Du1, Du2, boundary_l, boundary_r

@@ -32,7 +32,7 @@ def run(config):
 
     # define model
     model_config = config['model']
-    L = data_config['L']
+    # L = data_config['L']
     if model_config['name'] == 'fno':
         model = FNO1d(modes=model_config['modes'],
                       fc_dim=model_config['fc_dim'],
@@ -45,8 +45,8 @@ def run(config):
         varphi = test_func_moment(data_config['BC'])
 
         model.apply_output_transform(
-            [lambda x, y: psi(x, L) * y,
-             lambda x, y: varphi(x, L) * y]
+            [lambda x, y: psi(x, 1.0) * y,
+             lambda x, y: varphi(x, 1.0) * y]
         )
 
     # train
@@ -60,8 +60,8 @@ def run(config):
     # optimizer = torch.optim.Adam(model.parameters(), lr=0.001, weight_decay=1e-4)
     # scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=100000)
 
-    pino_loss = FDM_ReducedOrder2_Euler_Bernoulli_FGBeam_BSF
-    # pino_loss = FDM_ReducedOrder2_Euler_Bernoulli_FGBeam_BSF_norm
+    # pino_loss = FDM_ReducedOrder2_Euler_Bernoulli_FGBeam_BSF
+    pino_loss = FDM_ReducedOrder2_Euler_Bernoulli_FGBeam_BSF_norm
     train_1d_EB_FGbeam(model,
              train_loader,
              optimizer,
@@ -97,7 +97,7 @@ def test(config):
                                       train=False)
 
     model_config = config['model']
-    L = data_config['L']
+    # L = data_config['L']
     if model_config['name'] == 'fno':
         model = FNO1d(modes=model_config['modes'],
                       fc_dim=model_config['fc_dim'],
@@ -110,8 +110,8 @@ def test(config):
         varphi = test_func_moment(data_config['BC'])
 
         model.apply_output_transform(
-            [lambda x, y: psi(x, L) * y,
-             lambda x, y: varphi(x, L) * y]
+            [lambda x, y: psi(x, 1.0) * y,
+             lambda x, y: varphi(x, 1.0) * y]
         )
 
     # Load from checkpoint
@@ -121,8 +121,8 @@ def test(config):
         model.load_state_dict(ckpt['model'])
         print('Weights loaded from %s' % ckpt_path)
 
-    pino_loss = FDM_ReducedOrder2_Euler_Bernoulli_FGBeam_BSF
-    # pino_loss = FDM_ReducedOrder2_Euler_Bernoulli_FGBeam_BSF_norm
+    # pino_loss = FDM_ReducedOrder2_Euler_Bernoulli_FGBeam_BSF
+    pino_loss = FDM_ReducedOrder2_Euler_Bernoulli_FGBeam_BSF_norm
     myloss = LpLoss(size_average=True)
     model.eval()
     nsample = data_config['n_sample']
@@ -138,7 +138,7 @@ def test(config):
     batchsize = config['test']['batchsize']
     dx = 1 / (s - 1)
     x_test = data_loader.dataset[0][:, -1].repeat(batchsize).reshape(batchsize, s)
-    bc = shape_function(data_config['BC'], x_test, L)
+    bc = shape_function(data_config['BC'], x_test, 1.0)
     with torch.no_grad():
         for i, data_x in enumerate(data_loader):
             data_x = data_x.to(device)
@@ -174,7 +174,9 @@ def test(config):
     print(f'==Averaged relative L2 error mean(pde1): {mean_err_pde1}, std error: {std_err_pde1}==')
     print(f'==Averaged relative L2 error mean(pde2): {mean_err_pde2}, std error: {std_err_pde2}==')
 
-    # savemat('EB_powerlaw_CC_data3.mat', {'x': test_x, 'yp': preds_y})
+    path = config['test']['save_dir']
+    ckpt_dir = 'checkpoints/%s/' % path
+    # savemat(ckpt_dir + 'EB_powerlaw1Dtri_CS_data5max_a08_norm_16000.mat', {'x': test_x, 'yp': preds_y})
     # err_idx = np.argsort(test_err)
     # err_idx = np.arange(0, nsample)
     # np.random.shuffle(err_idx)

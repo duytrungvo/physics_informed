@@ -1,19 +1,19 @@
 data:
   name: 'bidirectional FG Beam'
-  BC: 'CC'
-  datapath: 'D:\machine_learning\GitHub\data\physics_informed\FGbeam\EB_powerlaw_validate_1025_rng0.1_data3.mat'
-  total_num: 51
+  BC: 'CH'
+  datapath: '/mnt/sbd1/data/trungvd/data/physics_informed/FGbeam/tri/EB_powerlaw1Dtri_validate_1025_rng0.1_data5max_a08.mat'
+  total_num: 1815
   offset: 0
-  n_sample: 51
+  n_sample: 1815
   nx: 1025
   sub: 8
   in_dim: 2
   out_dim: 2
-  q: 100.0
-  L: 1.0
-  b: 0.01
-  h: 0.05
-  Em: 70000000.0
+  q: 2.0
+  L: 2.0
+  b: 0.1
+  h: 0.1
+  Em: 14000000.0
 
 model:
   name: 'fno'
@@ -26,3 +26,4 @@ model:
 test:
   batchsize: 1
   ckpt: 'checkpoints/FGbeam/EB_FGbeam-pretrain-eqn.pt'
+  save_dir: 'FGbeam'

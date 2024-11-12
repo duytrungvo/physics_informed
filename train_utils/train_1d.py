@@ -465,7 +465,7 @@ def train_1d_EB_FGbeam(model,
     batchsize = train_loader.batch_size
     nx = train_loader.dataset[0].size(0)
     x_loss = train_loader.dataset[0][:, -1].repeat(batchsize).reshape(batchsize, nx)
-    bc = shape_function(config['data']['BC'], x_loss, config['data']['L'])
+    bc = shape_function(config['data']['BC'], x_loss, 1.0)
     for e in pbar:
         model.train()
         physic_mse = 0.0
